@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% block title %}{{ team.name }} — Leaderboard{% endblock %}
+{% block page_title %}{{ team.name }}{% endblock %}
+{% block page_sub %}Team leaderboard & members{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+
+  <!-- Top bar -->
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+    <div class="d-flex align-items-center gap-2">
+      <a href="{{ url_for('teams.index') }}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i>
+      </a>
+      <div>
+        <h5 class="fw-bold mb-0">{{ team.name }}</h5>
+        {% if team.description %}
+        <div class="text-wp-muted" style="font-size:12px">{{ team.description }}</div>
+        {% endif %}
+      </div>
+    </div>
+    <div class="d-flex gap-2">
+      {% if is_owner or my_role == 'admin' %}
+      <a href="{{ url_for('teams.settings', team_id=team.id) }}"
+         class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-gear me-1"></i>Settings
+      </a>
+      {% endif %}
+      {% if not is_owner %}
+      <form method="POST" action="{{ url_for('teams.leave', team_id=team.id) }}"
+            onsubmit="return confirm('Leave {{ team.name }}?')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-sm btn-outline-danger">
+          <i class="bi bi-box-arrow-right me-1"></i>Leave
+        </button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Invite code banner -->
+  {% if is_owner or my_role == 'admin' %}
+  <div class="card border-0 rounded-4 mb-4 p-3" style="background:var(--wp-accent-bg);border:1px solid rgba(79,70,229,.15) !important">
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+      <i class="bi bi-link-45deg" style="font-size:1.4rem;color:var(--wp-accent)"></i>
+      <div class="flex-grow-1">
+        <div class="fw-semibold" style="font-size:13px">Invite Code</div>
+        <div class="text-wp-muted" style="font-size:12px">Share this code so colleagues can join your team.</div>
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        <code id="inviteCode" style="font-size:18px;font-weight:700;letter-spacing:.12em;color:var(--wp-accent)">{{ team.invite_code }}</code>
+        <button class="btn btn-sm btn-outline-secondary" onclick="copyInvite()">
+          <i class="bi bi-clipboard" id="copyIcon"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Stats summary -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+      <div class="card border-0 shadow-sm rounded-3 p-3 text-center" style="background:var(--wp-card)">
+        <div class="fw-bold fs-3" style="color:var(--wp-accent)">{{ data.members|length }}</div>
+        <div class="text-wp-muted" style="font-size:12px">Members</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card border-0 shadow-sm rounded-3 p-3 text-center" style="background:var(--wp-card)">
+        <div class="fw-bold fs-3" style="color:#22c55e">{{ data.members | sum(attribute='tasks_done') }}</div>
+        <div class="text-wp-muted" style="font-size:12px">Tasks Done</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card border-0 shadow-sm rounded-3 p-3 text-center" style="background:var(--wp-card)">
+        <div class="fw-bold fs-3" style="color:#f59e0b">{{ data.members | sum(attribute='tasks_total') }}</div>
+        <div class="text-wp-muted" style="font-size:12px">Total Tasks</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card border-0 shadow-sm rounded-3 p-3 text-center" style="background:var(--wp-card)">
+        <div class="fw-bold fs-3" style="color:#6366f1">{{ data.members | selectattr('streak', 'gt', 0) | list | length }}</div>
+        <div class="text-wp-muted" style="font-size:12px">On Streak 🔥</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaderboard -->
+  <div class="card border-0 shadow-sm rounded-4" style="background:var(--wp-card)">
+    <div class="card-body p-0">
+      <div class="p-4 pb-2">
+        <h6 class="fw-bold mb-0">🏆 Leaderboard</h6>
+        <div class="text-wp-muted" style="font-size:12px">Ranked by tasks completed</div>
+      </div>
+
+      {% if data.members %}
+      <div class="table-responsive">
+        <table class="table table-hover mb-0" style="font-size:13px">
+          <thead>
+            <tr style="color:var(--wp-muted);border-color:var(--wp-border)">
+              <th class="ps-4" style="font-weight:600;font-size:11px;text-transform:uppercase">#</th>
+              <th style="font-weight:600;font-size:11px;text-transform:uppercase">Member</th>
+              <th class="text-center" style="font-weight:600;font-size:11px;text-transform:uppercase">Done</th>
+              <th class="text-center" style="font-weight:600;font-size:11px;text-transform:uppercase">Total</th>
+              <th class="text-center" style="font-weight:600;font-size:11px;text-transform:uppercase">Streak</th>
+              <th class="text-center" style="font-weight:600;font-size:11px;text-transform:uppercase">Rate</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for m in data.members %}
+            <tr style="border-color:var(--wp-border);{% if m.user_id == current_user.id %}background:var(--wp-accent-bg){% endif %}">
+              <!-- Rank -->
+              <td class="ps-4 fw-bold" style="color:{% if m.rank == 1 %}#f59e0b{% elif m.rank == 2 %}#9ca3af{% elif m.rank == 3 %}#b45309{% else %}var(--wp-muted){% endif %}">
+                {% if m.rank == 1 %}🥇
+                {% elif m.rank == 2 %}🥈
+                {% elif m.rank == 3 %}🥉
+                {% else %}#{{ m.rank }}{% endif %}
+              </td>
+
+              <!-- Member -->
+              <td>
+                <div class="d-flex align-items-center gap-2">
+                  <div style="width:34px;height:34px;border-radius:50%;background:{{ m.color }};display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;flex-shrink:0">
+                    {{ m.initials }}
+                  </div>
+                  <div>
+                    <div class="fw-semibold">
+                      {{ m.name }}
+                      {% if m.user_id == current_user.id %}
+                      <span class="badge ms-1" style="background:var(--wp-accent-bg);color:var(--wp-accent);font-size:9px">You</span>
+                      {% endif %}
+                    </div>
+                    <div style="font-size:11px;color:var(--wp-muted)">
+                      {{ m.role|title }}
+                      {% if m.is_pro %}<span class="badge ms-1" style="background:#fef3c7;color:#92400e;font-size:9px">Pro</span>{% endif %}
+                    </div>
+                  </div>
+                </div>
+              </td>
+
+              <!-- Done -->
+              <td class="text-center fw-bold" style="color:#22c55e">{{ m.tasks_done }}</td>
+
+              <!-- Total -->
+              <td class="text-center text-wp-muted">{{ m.tasks_total }}</td>
+
+              <!-- Streak -->
+              <td class="text-center">
+                {% if m.streak > 0 %}
+                <span style="color:#f59e0b;font-weight:600">🔥 {{ m.streak }}d</span>
+                {% else %}
+                <span class="text-wp-muted">—</span>
+                {% endif %}
+              </td>
+
+              <!-- Completion rate -->
+              <td class="text-center">
+                {% if m.tasks_total > 0 %}
+                  {% set rate = (m.tasks_done / m.tasks_total * 100)|int %}
+                  <div class="d-flex align-items-center gap-2 justify-content-center">
+                    <div style="width:50px;height:5px;background:var(--wp-border);border-radius:99px;overflow:hidden">
+                      <div style="width:{{ rate }}%;height:100%;background:{% if rate>=75 %}#22c55e{% elif rate>=40 %}#f59e0b{% else %}#6366f1{% endif %};border-radius:99px"></div>
+                    </div>
+                    <span style="font-size:11px;color:var(--wp-muted)">{{ rate }}%</span>
+                  </div>
+                {% else %}
+                <span class="text-wp-muted">—</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="text-center py-5">
+        <p class="text-wp-muted mb-0">No members yet. Share the invite code to get started!</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+<script>
+function copyInvite() {
+  const code = document.getElementById('inviteCode').textContent.trim();
+  const link = window.location.origin + '/teams/join?code=' + code;
+  navigator.clipboard.writeText(code).then(() => {
+    const ic = document.getElementById('copyIcon');
+    ic.className = 'bi bi-check2';
+    setTimeout(() => ic.className = 'bi bi-clipboard', 2000);
+  });
+}
+</script>
+{% endblock %}

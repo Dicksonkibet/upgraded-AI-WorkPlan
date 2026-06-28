@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Help & Support{% endblock %}
+{% block content %}
+<div class="container-fluid py-4">
+
+  <div class="d-flex align-items-center gap-3 mb-4">
+    <div>
+      <h4 class="mb-0 fw-bold">❓ Help & Support</h4>
+      <p class="text-wp-muted mb-0" style="font-size:13px">Guides, FAQs and direct support</p>
+    </div>
+  </div>
+
+  <div class="row g-4">
+
+    <!-- WhatsApp CTA -->
+    <div class="col-12">
+      <div class="card border-0 rounded-4 p-4" style="background:linear-gradient(135deg,#25d366,#128c7e);color:#fff">
+        <div class="row align-items-center g-3">
+          <div class="col-auto">
+            <i class="bi bi-whatsapp" style="font-size:3rem"></i>
+          </div>
+          <div class="col">
+            <h5 class="fw-bold mb-1">Chat with Support on WhatsApp</h5>
+            <p class="mb-0" style="font-size:13px;opacity:.9">
+              Our team typically replies within a few minutes. Available Mon–Sat, 8am–8pm EAT.
+            </p>
+          </div>
+          <div class="col-auto">
+            {% if whatsapp_number %}
+            <a href="https://wa.me/{{ whatsapp_number }}?text=Hi%2C%20I%20need%20help%20with%20WorkPro"
+               target="_blank" class="btn btn-light fw-semibold px-4">
+              <i class="bi bi-whatsapp me-2"></i>Open WhatsApp
+            </a>
+            {% else %}
+            <span class="badge bg-light text-dark">WhatsApp not configured</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FAQ -->
+    <div class="col-lg-8">
+      <div class="card border-0 shadow-sm rounded-3" style="background:var(--wp-card)">
+        <div class="card-body p-4">
+          <h6 class="fw-bold mb-3">Frequently Asked Questions</h6>
+          <div class="accordion accordion-flush" id="faqAccordion">
+
+            {% set faqs = [
+              ('How do I upgrade to Pro?', 'Go to Subscription → choose Monthly or Annual → optionally enter a promo code → enter your M-Pesa number → approve the STK Push on your phone. Your account upgrades instantly after payment.'),
+              ('What is the Referral Program?', 'Share your unique referral link (found in the Referral section). When someone signs up and subscribes using your link, you automatically earn 20% of their subscription as a cash commission sent to your M-Pesa.'),
+              ('How do I receive commission payouts?', 'Add your M-Pesa phone number in the Referral page. Commissions are sent automatically when a referred user pays. If a payout fails, our team will process it manually within 24 hours.'),
+              ('How do Teams work?', 'Go to Teams → Create a Team or join one using an invite code. Once in a team you can see a leaderboard of everyone\'s task completion. Admins and owners can manage members and regenerate invite codes from Team Settings.'),
+              ('How do I invite someone to my team?', 'Open your team and copy the 8-character invite code. Share it with your colleague. They go to Teams → enter the code in "Join a Team" → they are immediately added to your leaderboard.'),
+              ('Do I need Pro to use Teams?', 'No — Teams are available on all plans. However Pro users enjoy unlimited tasks which improves their leaderboard performance.'),
+              ('What are promo / discount codes?', 'Promo codes give a percentage or fixed KES discount on your Pro subscription. Enter the code in the Subscription page before paying. Each code can only be used once per account.'),
+              ('What are the Free plan limits?', 'Free plan includes: 20 tasks, 10 documents, and 5 AI messages per day. Upgrade to Pro for unlimited access.'),
+              ('Can I cancel my Pro subscription?', 'Yes. Go to Subscription → Cancel Subscription. You retain Pro access until the end of your billing period.'),
+              ('How does the AI assistant work?', 'The AI can read and manage your tasks, plans, and documents. Pro users get full management — create, update, delete. Free users get read-only AI with daily message limits.'),
+              ('How do I reset my password?', 'Click "Forgot Password" on the login page. A reset link will be emailed to you (check your spam folder).'),
+              ('Is my data secure?', 'Yes. All passwords are bcrypt-hashed. Sessions are token-protected. We use CSRF protection on all forms. Data is stored on PostgreSQL with connection encryption.'),
+            ] %}
+
+            {% for q, a in faqs %}
+            <div class="accordion-item" style="background:transparent;border-color:var(--wp-border)">
+              <h2 class="accordion-header">
+                <button class="accordion-button collapsed fw-semibold" type="button"
+                  data-bs-toggle="collapse" data-bs-target="#faq{{ loop.index }}"
+                  style="background:var(--wp-surface);color:var(--wp-text);font-size:14px">
+                  {{ q }}
+                </button>
+              </h2>
+              <div id="faq{{ loop.index }}" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                <div class="accordion-body text-wp-muted" style="font-size:13px">
+                  {{ a }}
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick links -->
+    <div class="col-lg-4">
+      <div class="card border-0 shadow-sm rounded-3 mb-3" style="background:var(--wp-card)">
+        <div class="card-body p-4">
+          <h6 class="fw-bold mb-3">Quick Links</h6>
+          <div class="d-flex flex-column gap-2">
+            <a href="{{ url_for('subscription.index') }}" class="d-flex align-items-center gap-2 text-decoration-none p-2 rounded-2"
+              style="background:var(--wp-surface);color:var(--wp-text);font-size:13px">
+              <i class="bi bi-credit-card" style="color:var(--wp-accent)"></i> Subscription & Billing
+            </a>
+            <a href="{{ url_for('referral.index') }}" class="d-flex align-items-center gap-2 text-decoration-none p-2 rounded-2"
+              style="background:var(--wp-surface);color:var(--wp-text);font-size:13px">
+              <i class="bi bi-people" style="color:#22c55e"></i> Referral Program
+            </a>
+            <a href="{{ url_for('teams.index') }}" class="d-flex align-items-center gap-2 text-decoration-none p-2 rounded-2"
+              style="background:var(--wp-surface);color:var(--wp-text);font-size:13px">
+              <i class="bi bi-people-fill" style="color:#6366f1"></i> My Teams
+            </a>
+            <a href="{{ url_for('dashboard.profile') }}" class="d-flex align-items-center gap-2 text-decoration-none p-2 rounded-2"
+              style="background:var(--wp-surface);color:var(--wp-text);font-size:13px">
+              <i class="bi bi-person-gear" style="color:#f59e0b"></i> Edit Profile
+            </a>
+            <a href="{{ url_for('tasks.index') }}" class="d-flex align-items-center gap-2 text-decoration-none p-2 rounded-2"
+              style="background:var(--wp-surface);color:var(--wp-text);font-size:13px">
+              <i class="bi bi-check2-square" style="color:#6366f1"></i> My Tasks
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div class="card border-0 shadow-sm rounded-3" style="background:var(--wp-card)">
+        <div class="card-body p-4">
+          <h6 class="fw-bold mb-2">Contact Us</h6>
+          <p class="text-wp-muted mb-3" style="font-size:13px">
+            Prefer email? Reach out and we'll respond within 24 hours.
+          </p>
+          <a href="mailto:support@workpro.app" class="btn btn-sm btn-outline-secondary w-100">
+            <i class="bi bi-envelope me-1"></i> Email Support
+          </a>
+          {% if whatsapp_number %}
+          <a href="https://wa.me/{{ whatsapp_number }}?text=Hi%2C%20I%20need%20help%20with%20WorkPro"
+             target="_blank" class="btn btn-sm mt-2 w-100"
+             style="background:#25d366;color:#fff;border:none">
+            <i class="bi bi-whatsapp me-1"></i> WhatsApp
+          </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

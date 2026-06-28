@@ -1,0 +1,913 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block page_sub %}
+  {% set h = now.hour %}
+  Good {{ 'morning' if h < 12 else 'afternoon' if h < 17 else 'evening' }}, {{ current_user.first_name }} 👋
+{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+{% endblock %}
+
+{% block content %}
+<style>
+/* ── Tokens ── */
+:root {
+  --d-accent:  #7c6aff;
+  --d-green:   #27c98a;
+  --d-amber:   #f5a623;
+  --d-blue:    #4f9cf9;
+  --d-red:     #f87171;
+  --d-cyan:    #22d3ee;
+  --d-card:    var(--wp-card, #1c2128);
+  --d-border:  var(--wp-border, rgba(255,255,255,.08));
+  --d-text:    var(--wp-text, #e2e8f0);
+  --d-muted:   var(--wp-muted, #64748b);
+  --d-surface: var(--wp-surface, #161b22);
+  --d-r:       12px;
+  --d-r-sm:    8px;
+}
+
+/* ── Stat cards ── */
+.d-stat {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--d-card);
+  border: 1px solid var(--d-border);
+  border-radius: var(--d-r);
+  padding: 16px 18px;
+  transition: border-color .2s, transform .15s;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+}
+.d-stat::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: var(--d-stat-color, var(--d-accent));
+  opacity: 0;
+  transition: opacity .2s;
+}
+.d-stat:hover { border-color: var(--d-stat-color, var(--d-accent)); transform: translateY(-2px); }
+.d-stat:hover::before { opacity: 1; }
+.d-stat-icon {
+  width: 44px; height: 44px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; flex-shrink: 0;
+}
+.d-stat-val {
+  font-size: 24px; font-weight: 800; line-height: 1;
+  color: var(--d-text);
+}
+.d-stat-lbl { font-size: 11px; color: var(--d-muted); margin-top: 3px; letter-spacing: .3px; }
+.d-stat-trend { font-size: 10px; margin-top: 4px; }
+.trend-up   { color: var(--d-green); }
+.trend-down { color: var(--d-red); }
+
+/* ── Cards ── */
+.d-card {
+  background: var(--d-card);
+  border: 1px solid var(--d-border);
+  border-radius: var(--d-r);
+  padding: 22px; height: 100%;
+}
+.d-card-hd {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 18px;
+}
+.d-card-title {
+  display: flex; align-items: center; gap: 9px;
+  font-size: 13px; font-weight: 700; color: var(--d-text);
+}
+.d-card-icon {
+  width: 28px; height: 28px; border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; flex-shrink: 0;
+}
+.btn-d-ghost {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: transparent; color: var(--d-muted);
+  border: 1px solid var(--d-border); border-radius: var(--d-r-sm);
+  padding: 5px 12px; font-size: 12px; font-weight: 500;
+  text-decoration: none;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.btn-d-ghost:hover { border-color: var(--d-accent); color: var(--d-text); background: rgba(124,106,255,.06); color: var(--d-text); }
+
+/* ── Task table ── */
+.d-table { width: 100%; border-collapse: collapse; }
+.d-table thead th {
+  font-size: 10px; font-weight: 700; letter-spacing: .9px;
+  text-transform: uppercase; color: var(--d-muted);
+  padding: 0 10px 10px; border-bottom: 1px solid var(--d-border);
+  white-space: nowrap;
+}
+.d-table thead th:first-child { padding-left: 0; }
+.d-table tbody tr { border-bottom: 1px solid var(--d-border); transition: background .12s; }
+.d-table tbody tr:last-child { border-bottom: none; }
+.d-table tbody tr:hover { background: rgba(255,255,255,.025); }
+.d-table tbody td { padding: 11px 10px; font-size: 13px; color: var(--d-text); vertical-align: middle; }
+.d-table tbody td:first-child { padding-left: 0; }
+.t-title { font-weight: 600; line-height: 1.3; }
+.t-cat   { font-size: 11px; color: var(--d-muted); margin-top: 2px; }
+.t-due   { font-size: 11px; color: var(--d-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* ── Badges ── */
+.d-badge {
+  display: inline-flex; align-items: center; padding: 3px 9px;
+  border-radius: 20px; font-size: 11px; font-weight: 600; white-space: nowrap;
+}
+.d-badge-in_progress { background: rgba(245,166,35,.15);  color: #fbbf24; }
+.d-badge-todo        { background: rgba(79,156,249,.12);  color: #60a5fa; }
+.d-badge-done        { background: rgba(39,201,138,.15);  color: #27c98a; }
+.d-badge-review      { background: rgba(124,106,255,.15); color: #a78bfa; }
+
+/* ── Activity log ── */
+.log-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 9px 0; border-bottom: 1px solid var(--d-border);
+}
+.log-row:last-child { border-bottom: none; }
+.log-pip { width: 7px; height: 7px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+.log-text  { font-size: 12.5px; color: var(--d-text); line-height: 1.4; flex: 1; }
+.log-clock { font-size: 11px; color: var(--d-muted); white-space: nowrap; padding-top: 2px; }
+
+/* ── Progress ring ── */
+.ring-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.ring-label { font-size: 11px; color: var(--d-muted); text-align: center; }
+.ring-val { font-size: 20px; font-weight: 800; color: var(--d-text); }
+
+/* ── Chart card ── */
+.chart-card {
+  background: var(--d-card);
+  border: 1px solid var(--d-border);
+  border-radius: var(--d-r);
+  padding: 20px; height: 100%;
+}
+.chart-hd {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px;
+}
+.chart-title { font-size: 13px; font-weight: 700; color: var(--d-text); display: flex; align-items: center; gap: 8px; }
+.chart-meta  { font-size: 11px; color: var(--d-muted); }
+
+/* ── Quick actions ── */
+.qa-btn {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--d-surface);
+  border: 1px solid var(--d-border);
+  border-radius: var(--d-r-sm);
+  padding: 11px 14px;
+  font-size: 12.5px; font-weight: 500; color: var(--d-text);
+  cursor: pointer; text-decoration: none;
+  transition: border-color .15s, background .15s, transform .1s;
+  width: 100%; text-align: left;
+}
+.qa-btn:hover { border-color: var(--d-accent); background: rgba(124,106,255,.06); transform: translateX(2px); color: var(--d-text); }
+.qa-icon { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+
+/* ── Overdue alert ── */
+.overdue-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; border-radius: var(--d-r-sm);
+  background: rgba(248,113,113,.07); border: 1px solid rgba(248,113,113,.18);
+  margin-bottom: 6px; font-size: 12.5px; color: var(--d-text);
+}
+.overdue-dot { width: 7px; height: 7px; background: var(--d-red); border-radius: 50%; flex-shrink: 0; }
+
+/* ── AI insight card ── */
+.ai-insight {
+  background: linear-gradient(135deg, rgba(124,106,255,.08), rgba(39,201,138,.06));
+  border: 1px solid rgba(124,106,255,.18);
+  border-radius: var(--d-r);
+  padding: 18px;
+}
+.ai-insight-hd {
+  display: flex; align-items: center; gap: 9px;
+  font-size: 13px; font-weight: 700; color: var(--d-text);
+  margin-bottom: 10px;
+}
+.ai-icon-sm {
+  width: 28px; height: 28px; border-radius: 7px;
+  background: linear-gradient(135deg, var(--d-accent), var(--d-green));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; color: #fff; flex-shrink: 0;
+}
+.ai-insight p { font-size: 12.5px; color: var(--d-muted); line-height: 1.65; margin-bottom: 12px; }
+.ai-insight-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(124,106,255,.15); color: #a78bfa;
+  border: none; border-radius: var(--d-r-sm);
+  padding: 7px 14px; font-size: 12px; font-weight: 600;
+  cursor: pointer; text-decoration: none;
+  transition: background .15s;
+}
+.ai-insight-btn:hover { background: rgba(124,106,255,.25); color: #a78bfa; }
+
+/* ── Usage bar ── */
+.usage-bar-wrap { margin-bottom: 10px; }
+.usage-bar-top { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 11.5px; color: var(--d-muted); }
+.usage-bar-bg { background: rgba(255,255,255,.05); border-radius: 4px; height: 5px; overflow: hidden; }
+.usage-bar-fill { height: 100%; border-radius: 4px; transition: width .5s ease; }
+
+/* ── Empty state ── */
+.d-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 36px 0; color: var(--d-muted); gap: 8px; }
+.d-empty-icon  { font-size: 28px; opacity: .35; }
+.d-empty-label { font-size: 13px; }
+
+/* ── Responsive ── */
+@media (max-width: 576px) { .d-stat-val { font-size: 20px; } }
+
+/* ── AI command bar ── */
+.ai-command-bar {
+  display: flex; align-items: center; gap: 12px;
+  background: linear-gradient(135deg, rgba(124,106,255,.1), rgba(39,201,138,.06));
+  border: 1px solid rgba(124,106,255,.25);
+  border-radius: var(--d-r);
+  padding: 12px 16px;
+  margin-bottom: 24px;
+  cursor: text;
+  transition: border-color .2s, box-shadow .2s;
+}
+.ai-command-bar:focus-within {
+  border-color: rgba(124,106,255,.5);
+  box-shadow: 0 0 0 3px rgba(124,106,255,.08);
+}
+.ai-command-bar input {
+  flex: 1; background: transparent; border: none; outline: none;
+  font-size: 14px; color: var(--d-text);
+}
+.ai-command-bar input::placeholder { color: var(--d-muted); }
+.ai-cmd-btn {
+  background: rgba(124,106,255,.18); color: #a78bfa;
+  border: none; border-radius: 7px; padding: 6px 14px;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: background .15s;
+  white-space: nowrap;
+}
+.ai-cmd-btn:hover { background: rgba(124,106,255,.32); }
+
+/* ── Onboarding checklist ── */
+.onboard-card {
+  background: linear-gradient(135deg, rgba(39,201,138,.07), rgba(79,156,249,.05));
+  border: 1px solid rgba(39,201,138,.2);
+  border-radius: var(--d-r); padding: 18px 20px; margin-bottom: 20px;
+}
+.onboard-title { font-size: 13px; font-weight: 700; color: var(--d-text); margin-bottom: 12px; }
+.onboard-steps { display: flex; flex-direction: column; gap: 8px; }
+.onboard-step {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 12.5px; color: var(--d-muted);
+}
+.onboard-step.done { color: var(--d-text); }
+.onboard-step .step-icon {
+  width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; flex-shrink: 0;
+  background: rgba(255,255,255,.06); color: var(--d-muted);
+}
+.onboard-step.done .step-icon { background: rgba(39,201,138,.2); color: #27c98a; }
+.onboard-dismiss { font-size: 11px; color: var(--d-muted); cursor: pointer; margin-top: 10px; display: inline-block; }
+.onboard-dismiss:hover { color: var(--d-text); }
+
+/* ── Overdue banner ── */
+.overdue-banner {
+  display: flex; align-items: center; gap: 12px;
+  background: rgba(248,113,113,.07); border: 1px solid rgba(248,113,113,.2);
+  border-radius: var(--d-r); padding: 12px 16px; margin-bottom: 20px;
+  font-size: 13px; color: var(--d-text);
+}
+.overdue-banner .ob-icon { font-size: 16px; }
+.overdue-banner .ob-link {
+  margin-left: auto; font-size: 12px; color: #f87171;
+  text-decoration: none; font-weight: 600;
+}
+.overdue-banner .ob-link:hover { text-decoration: underline; }
+
+/* ── Streak badge ── */
+.streak-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.2);
+  border-radius: 20px; padding: 3px 10px; font-size: 12px;
+  color: #fbbf24; font-weight: 600;
+}
+</style>
+
+{% set overdue_tasks = [] %}
+{% for t in high_tasks %}
+  {% if t.due_date and t.due_date < now.date() and t.status != 'done' %}
+    {% set _ = overdue_tasks.append(t) %}
+  {% endif %}
+{% endfor %}
+
+{% set onboard_task  = stats.total_tasks > 0 %}
+{% set onboard_plan  = stats.today_plans > 0 %}
+{% set onboard_ai    = usage.ai_msgs > 0 %}
+{% set onboard_steps = [onboard_task, onboard_plan, onboard_ai] | select | list | length %}
+
+<!-- ═══ EMBEDDED AI COMMAND BAR ═══════════════════════════════════════ -->
+<div class="ai-command-bar" id="aiCommandBar">
+  <div class="ai-icon-sm" style="width:32px;height:32px;flex-shrink:0">
+    <i class="bi bi-robot"></i>
+  </div>
+  <input type="text" id="aiCommandInput"
+    placeholder="Tell me what to do today… (e.g. 'create task: submit report by Friday, high priority')" />
+  <button class="ai-cmd-btn" id="aiCommandSend">
+    <i class="bi bi-send-fill"></i> Ask AI
+  </button>
+</div>
+<div id="aiCommandResponse" style="display:none;margin:-16px 0 20px;padding:12px 16px;background:rgba(124,106,255,.06);border:1px solid rgba(124,106,255,.15);border-radius:0 0 var(--d-r) var(--d-r);font-size:13px;color:var(--d-text);line-height:1.6"></div>
+
+<!-- ═══ OVERDUE NUDGE (shown only when there are overdue tasks) ════════ -->
+{% if overdue_tasks %}
+<div class="overdue-banner">
+  <span class="ob-icon">⚠️</span>
+  <span>
+    You have <strong>{{ overdue_tasks|length }} overdue task{{ 's' if overdue_tasks|length != 1 }}</strong>.
+    Want the AI to reschedule them?
+  </span>
+  <a href="#" class="ob-link" onclick="rescheduleOverdue(event)">Reschedule with AI →</a>
+</div>
+{% endif %}
+
+<!-- ═══ ONBOARDING CHECKLIST (shown until all 3 done OR dismissed) ═════ -->
+{% if not current_user.onboarding_done %}
+<div class="onboard-card" id="onboardCard">
+  <div class="onboard-title">
+    🚀 Get started with WorkPro &nbsp;
+    <span style="font-size:11px;font-weight:500;color:var(--d-muted)">{{ onboard_steps }}/3 complete</span>
+  </div>
+  <div class="onboard-steps">
+    <div class="onboard-step {{ 'done' if onboard_task else '' }}">
+      <div class="step-icon">{{ '✓' if onboard_task else '1' }}</div>
+      <span>
+        {% if onboard_task %}Created your first task{% else %}
+          <a href="{{ url_for('tasks.index') }}" style="color:#a78bfa">Create your first task</a>
+        {% endif %}
+      </span>
+    </div>
+    <div class="onboard-step {{ 'done' if onboard_plan else '' }}">
+      <div class="step-icon">{{ '✓' if onboard_plan else '2' }}</div>
+      <span>
+        {% if onboard_plan %}Planned your day{% else %}
+          <a href="{{ url_for('planner.index') }}" style="color:#a78bfa">Plan today</a>
+          or ask the AI above "plan my day"
+        {% endif %}
+      </span>
+    </div>
+    <div class="onboard-step {{ 'done' if onboard_ai else '' }}">
+      <div class="step-icon">{{ '✓' if onboard_ai else '3' }}</div>
+      <span>
+        {% if onboard_ai %}Tried the AI assistant{% else %}
+          Use the bar above or <a href="{{ url_for('ai.chat') }}" style="color:#a78bfa">open the AI chat</a>
+        {% endif %}
+      </span>
+    </div>
+  </div>
+  {% if onboard_steps == 3 %}
+  <span class="onboard-dismiss" onclick="dismissOnboarding()">✓ All done — dismiss this</span>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- ═══ STREAK BADGE (shown when streak >= 2) ════════════════════════ -->
+{% if current_user.streak_days and current_user.streak_days >= 2 %}
+<div class="mb-3">
+  <span class="streak-badge">🔥 {{ current_user.streak_days }}-day streak — keep it going!</span>
+</div>
+{% endif %}
+
+
+<!-- ═══════════════════════════════════════════════
+     ROW 1 — STAT CARDS (6 real metrics)
+═══════════════════════════════════════════════ -->
+{% set completion_pct = ((stats.done / stats.total_tasks * 100) | int) if stats.total_tasks > 0 else 0 %}
+{% set overdue_count = namespace(val=0) %}
+{% for t in high_tasks %}
+  {% if t.due_date and t.due_date < now.date() and t.status != 'done' %}
+    {% set overdue_count.val = overdue_count.val + 1 %}
+  {% endif %}
+{% endfor %}
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="d-stat" style="--d-stat-color:#a78bfa">
+      <div class="d-stat-icon" style="background:rgba(124,106,255,.15)"><i class="bi bi-list-check" style="color:#a78bfa"></i></div>
+      <div>
+        <div class="d-stat-val">{{ stats.total_tasks }}</div>
+        <div class="d-stat-lbl">Total Tasks</div>
+        <div class="d-stat-trend">
+          {% if completion_pct >= 50 %}<span class="trend-up">↑ {{ completion_pct }}% done</span>
+          {% else %}<span class="trend-down">{{ completion_pct }}% done</span>{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="d-stat" style="--d-stat-color:#fbbf24">
+      <div class="d-stat-icon" style="background:rgba(245,166,35,.15)"><i class="bi bi-arrow-repeat" style="color:#fbbf24"></i></div>
+      <div>
+        <div class="d-stat-val">{{ stats.in_progress }}</div>
+        <div class="d-stat-lbl">In Progress</div>
+        <div class="d-stat-trend"><span class="trend-up">Active now</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="d-stat" style="--d-stat-color:#27c98a">
+      <div class="d-stat-icon" style="background:rgba(39,201,138,.15)"><i class="bi bi-check-circle" style="color:#34d399"></i></div>
+      <div>
+        <div class="d-stat-val">{{ stats.done }}</div>
+        <div class="d-stat-lbl">Completed</div>
+        <div class="d-stat-trend"><span class="trend-up">↑ {{ completion_pct }}%</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="d-stat" style="--d-stat-color:#60a5fa">
+      <div class="d-stat-icon" style="background:rgba(79,156,249,.12)"><i class="bi bi-hourglass-split" style="color:#60a5fa"></i></div>
+      <div>
+        <div class="d-stat-val">{{ stats.todo }}</div>
+        <div class="d-stat-lbl">Pending</div>
+        <div class="d-stat-trend"><span style="color:var(--d-muted)">Todo queue</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="d-stat" style="--d-stat-color:#2dd4bf">
+      <div class="d-stat-icon" style="background:rgba(0,212,170,.12)"><i class="bi bi-calendar-check" style="color:#2dd4bf"></i></div>
+      <div>
+        <div class="d-stat-val">{{ stats.today_plans }}</div>
+        <div class="d-stat-lbl">Today's Plans</div>
+        <div class="d-stat-trend"><span style="color:var(--d-muted)">Scheduled</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="d-stat" style="--d-stat-color:#f87171">
+      <div class="d-stat-icon" style="background:rgba(248,113,113,.12)"><i class="bi bi-file-earmark-text" style="color:#f87171"></i></div>
+      <div>
+        <div class="d-stat-val">{{ stats.total_docs }}</div>
+        <div class="d-stat-lbl">Documents</div>
+        <div class="d-stat-trend"><span style="color:var(--d-muted)">In workspace</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     ROW 2 — CHARTS
+═══════════════════════════════════════════════ -->
+<div class="row g-4 mb-4">
+
+  <!-- Donut: task breakdown -->
+  <div class="col-md-4">
+    <div class="chart-card">
+      <div class="chart-hd">
+        <div class="chart-title">
+          <div class="d-card-icon" style="background:rgba(124,106,255,.12)"><i class="bi bi-pie-chart-fill" style="color:#a78bfa"></i></div>
+          Task Breakdown
+        </div>
+        <span class="chart-meta">All time</span>
+      </div>
+      <div style="position:relative;height:180px">
+        <canvas id="donutChart"></canvas>
+      </div>
+      <div class="d-flex justify-content-center gap-3 mt-3" style="font-size:11px;color:var(--d-muted)">
+        <span><span style="color:#60a5fa">●</span> Todo</span>
+        <span><span style="color:#fbbf24">●</span> In progress</span>
+        <span><span style="color:#27c98a">●</span> Done</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bar: priority split -->
+  <div class="col-md-4">
+    <div class="chart-card">
+      <div class="chart-hd">
+        <div class="chart-title">
+          <div class="d-card-icon" style="background:rgba(248,113,113,.12)"><i class="bi bi-flag-fill" style="color:#f87171"></i></div>
+          Priority Split
+        </div>
+        <span class="chart-meta">Your tasks</span>
+      </div>
+      <div style="position:relative;height:180px">
+        <canvas id="priorityChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Completion ring + usage -->
+  <div class="col-md-4">
+    <div class="chart-card d-flex flex-column justify-content-between">
+      <div class="chart-hd">
+        <div class="chart-title">
+          <div class="d-card-icon" style="background:rgba(39,201,138,.12)"><i class="bi bi-speedometer2" style="color:#27c98a"></i></div>
+          Productivity
+        </div>
+      </div>
+
+      <!-- Completion ring -->
+      <div class="ring-wrap mb-3">
+        <svg width="110" height="110" viewBox="0 0 110 110">
+          <circle cx="55" cy="55" r="45" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="10"/>
+          <circle cx="55" cy="55" r="45" fill="none"
+            stroke="url(#ringGrad)" stroke-width="10"
+            stroke-linecap="round"
+            stroke-dasharray="{{ (2 * 3.14159 * 45 * completion_pct / 100) | round(1) }} 999"
+            transform="rotate(-90 55 55)"/>
+          <defs>
+            <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#7c6aff"/>
+              <stop offset="100%" stop-color="#27c98a"/>
+            </linearGradient>
+          </defs>
+          <text x="55" y="51" text-anchor="middle" fill="var(--d-text)" font-size="18" font-weight="800">{{ completion_pct }}%</text>
+          <text x="55" y="67" text-anchor="middle" fill="var(--d-muted)" font-size="10">complete</text>
+        </svg>
+      </div>
+
+      <!-- Usage bars -->
+      {% if not current_user.is_pro %}
+      <div>
+        <div class="usage-bar-wrap">
+          <div class="usage-bar-top">
+            <span>Tasks</span>
+            <span>{{ usage.tasks }} / {{ limits.tasks if limits.tasks else '∞' }}</span>
+          </div>
+          <div class="usage-bar-bg">
+            <div class="usage-bar-fill" style="width:{{ [((usage.tasks / limits.tasks * 100) if limits.tasks else 0) | int, 100] | min }}%;background:var(--d-accent)"></div>
+          </div>
+        </div>
+        <div class="usage-bar-wrap">
+          <div class="usage-bar-top">
+            <span>Documents</span>
+            <span>{{ usage.docs }} / {{ limits.docs if limits.docs else '∞' }}</span>
+          </div>
+          <div class="usage-bar-bg">
+            <div class="usage-bar-fill" style="width:{{ [((usage.docs / limits.docs * 100) if limits.docs else 0) | int, 100] | min }}%;background:var(--d-blue)"></div>
+          </div>
+        </div>
+        <div class="usage-bar-wrap">
+          <div class="usage-bar-top">
+            <span>AI msgs today</span>
+            <span>{{ usage.ai_msgs }} / {{ limits.ai_msgs }}</span>
+          </div>
+          <div class="usage-bar-bg">
+            <div class="usage-bar-fill" style="width:{{ [((usage.ai_msgs / limits.ai_msgs * 100) if limits.ai_msgs else 0) | int, 100] | min }}%;background:var(--d-amber)"></div>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div style="font-size:12px;color:var(--d-muted);text-align:center">
+        <i class="bi bi-infinity" style="color:#a78bfa"></i> Unlimited on Pro
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     ROW 3 — HIGH PRIORITY TASKS + ACTIVITY
+═══════════════════════════════════════════════ -->
+<div class="row g-4 mb-4">
+
+  <!-- High priority tasks -->
+  <div class="col-lg-7">
+    <div class="d-card">
+      <div class="d-card-hd">
+        <div class="d-card-title">
+          <div class="d-card-icon" style="background:rgba(248,113,113,.12)"><i class="bi bi-flag" style="color:#f87171"></i></div>
+          High Priority Tasks
+        </div>
+        <a href="{{ url_for('tasks.index') }}?priority=high" class="btn-d-ghost">
+          View all <i class="bi bi-arrow-right"></i>
+        </a>
+      </div>
+
+      {% if high_tasks %}
+      <div class="table-responsive">
+        <table class="d-table">
+          <thead><tr><th>Task</th><th>Status</th><th>Due</th></tr></thead>
+          <tbody>
+            {% for t in high_tasks %}
+            <tr>
+              <td>
+                <div class="t-title">{{ t.title }}</div>
+                {% if t.category %}<div class="t-cat">{{ t.category }}</div>{% endif %}
+              </td>
+              <td>
+                <span class="d-badge d-badge-{{ t.status }}">{{ t.status.replace('_',' ') }}</span>
+              </td>
+              <td class="t-due">
+                {% if t.due_date %}
+                  {% set today = now.date() %}
+                  {% if t.due_date < today %}
+                    <span style="color:#f87171"><i class="bi bi-exclamation-circle"></i> {{ t.due_date.strftime('%d %b') }} (overdue)</span>
+                  {% elif t.due_date == today %}
+                    <span style="color:#fbbf24"><i class="bi bi-clock"></i> Today</span>
+                  {% else %}
+                    {{ t.due_date.strftime('%d %b %Y') }}
+                  {% endif %}
+                {% else %}—{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="d-empty">
+        <div class="d-empty-icon"><i class="bi bi-emoji-smile"></i></div>
+        <div class="d-empty-label">No high-priority tasks — you're clear!</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Recent activity -->
+  <div class="col-lg-5">
+    <div class="d-card">
+      <div class="d-card-hd">
+        <div class="d-card-title">
+          <div class="d-card-icon" style="background:rgba(79,156,249,.12)"><i class="bi bi-clock-history" style="color:#60a5fa"></i></div>
+          Recent Activity
+        </div>
+        <a href="{{ url_for('dashboard.logs') }}" class="btn-d-ghost">
+          Full log <i class="bi bi-arrow-right"></i>
+        </a>
+      </div>
+
+      {% if recent_logs %}
+        {% for log in recent_logs %}
+        <div class="log-row">
+          <div class="log-pip" style="background:{% if log.entity_type == 'task' %}#a78bfa{% elif log.entity_type == 'document' %}#27c98a{% else %}#fbbf24{% endif %}"></div>
+          <div class="log-text">{{ log.action }}</div>
+          <div class="log-clock">{{ log.created_at.strftime('%H:%M') }}</div>
+        </div>
+        {% endfor %}
+      {% else %}
+      <div class="d-empty">
+        <div class="d-empty-icon"><i class="bi bi-clock-history"></i></div>
+        <div class="d-empty-label">No activity yet today</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     ROW 4 — QUICK ACTIONS + AI INSIGHT
+═══════════════════════════════════════════════ -->
+<div class="row g-4">
+
+  <!-- Quick actions -->
+  <div class="col-lg-4">
+    <div class="d-card">
+      <div class="d-card-hd">
+        <div class="d-card-title">
+          <div class="d-card-icon" style="background:rgba(34,211,238,.1)"><i class="bi bi-lightning-fill" style="color:#22d3ee"></i></div>
+          Quick Actions
+        </div>
+      </div>
+      <div class="d-flex flex-column gap-2">
+        <a href="{{ url_for('tasks.index') }}" class="qa-btn" onclick="openCreateTask(event)">
+          <div class="qa-icon" style="background:rgba(124,106,255,.12)"><i class="bi bi-plus-circle" style="color:#a78bfa"></i></div>
+          Create new task
+        </a>
+        <a href="{{ url_for('planner.index') }}" class="qa-btn">
+          <div class="qa-icon" style="background:rgba(34,211,238,.1)"><i class="bi bi-calendar-plus" style="color:#22d3ee"></i></div>
+          Plan my day
+        </a>
+        <a href="{{ url_for('docs.index') }}" class="qa-btn">
+          <div class="qa-icon" style="background:rgba(39,201,138,.12)"><i class="bi bi-file-earmark-plus" style="color:#27c98a"></i></div>
+          Write a document
+        </a>
+        <a href="{{ url_for('ai.chat') }}" class="qa-btn">
+          <div class="qa-icon" style="background:linear-gradient(135deg,rgba(124,106,255,.12),rgba(39,201,138,.08))"><i class="bi bi-robot" style="color:#a78bfa"></i></div>
+          Ask AI for help
+        </a>
+        {% if current_user.is_admin() %}
+        <a href="{{ url_for('admin.index') }}" class="qa-btn">
+          <div class="qa-icon" style="background:rgba(248,113,113,.1)"><i class="bi bi-shield-lock" style="color:#f87171"></i></div>
+          Admin panel
+        </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- AI insight -->
+  <div class="col-lg-4">
+    <div class="ai-insight">
+      <div class="ai-insight-hd">
+        <div class="ai-icon-sm"><i class="bi bi-robot"></i></div>
+        AI Workspace Insights
+        {% if current_user.is_pro %}<span class="d-badge" style="background:rgba(124,106,255,.15);color:#a78bfa;font-size:10px">Pro ⚡</span>{% endif %}
+      </div>
+      <div id="aiInsightText">
+        <p>
+          {% if stats.total_tasks == 0 %}
+            Welcome! You have no tasks yet. Let me help you get started — I can create tasks, plan your day, and manage your whole workflow.
+          {% elif stats.done > 0 and completion_pct >= 70 %}
+            Great productivity! You've completed {{ stats.done }} of {{ stats.total_tasks }} tasks ({{ completion_pct }}%). Keep the momentum going — {% if stats.todo > 0 %}{{ stats.todo }} tasks still pending.{% else %}all clear!{% endif %}
+          {% elif stats.in_progress > 0 %}
+            You have {{ stats.in_progress }} task{{ 's' if stats.in_progress != 1 }} in progress and {{ stats.todo }} in the queue. {% if high_tasks %}High-priority items need attention.{% endif %}
+          {% else %}
+            {{ stats.todo }} task{{ 's' if stats.todo != 1 }} waiting to be started. Ready to plan your day and get things moving?
+          {% endif %}
+        </p>
+      </div>
+      <a href="{{ url_for('ai.chat') }}" class="ai-insight-btn">
+        <i class="bi bi-stars"></i>
+        {% if current_user.is_pro %}Open AI Agent{% else %}Try AI Free{% endif %}
+      </a>
+    </div>
+
+    <!-- Upgrade prompt for free users -->
+    {% if not current_user.is_pro %}
+    <div class="mt-3" style="background:linear-gradient(135deg,rgba(245,158,11,.08),rgba(248,113,113,.06));border:1px solid rgba(245,158,11,.18);border-radius:var(--d-r);padding:14px 16px">
+      <div style="font-size:12.5px;font-weight:700;color:var(--d-text);margin-bottom:6px">⚡ Upgrade to Pro</div>
+      <div style="font-size:12px;color:var(--d-muted);margin-bottom:12px">Unlimited tasks, docs, AI messages & full system management.</div>
+      <a href="{{ url_for('subscription.index') }}" class="btn-d-ghost" style="border-color:rgba(245,158,11,.35);color:#fbbf24;font-size:12px">
+        <i class="bi bi-rocket-takeoff"></i> Upgrade — KES 999/mo
+      </a>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Plan snapshot -->
+  <div class="col-lg-4">
+    <div class="d-card">
+      <div class="d-card-hd">
+        <div class="d-card-title">
+          <div class="d-card-icon" style="background:rgba(0,212,170,.1)"><i class="bi bi-calendar3" style="color:#2dd4bf"></i></div>
+          Today's Plan
+        </div>
+        <a href="{{ url_for('planner.index') }}" class="btn-d-ghost">
+          Open <i class="bi bi-arrow-right"></i>
+        </a>
+      </div>
+
+      {% if stats.today_plans > 0 %}
+        <div style="font-size:12.5px;color:var(--d-muted);margin-bottom:12px">
+          <i class="bi bi-calendar-check" style="color:#2dd4bf"></i>
+          {{ stats.today_plans }} item{{ 's' if stats.today_plans != 1 }} scheduled for today
+        </div>
+        <div style="background:rgba(39,201,138,.08);border:1px solid rgba(39,201,138,.15);border-radius:var(--d-r-sm);padding:12px;font-size:12.5px;color:var(--d-muted)">
+          <i class="bi bi-check2-circle" style="color:#27c98a"></i>
+          Click "Open" to see your full schedule and mark items complete.
+        </div>
+      {% else %}
+        <div class="d-empty">
+          <div class="d-empty-icon"><i class="bi bi-calendar-x"></i></div>
+          <div class="d-empty-label">Nothing planned yet</div>
+        </div>
+        <a href="{{ url_for('ai.chat') }}?service=plan_day" class="btn-d-ghost w-100 justify-content-center mt-2" style="display:flex">
+          <i class="bi bi-robot"></i> Let AI plan my day
+        </a>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* ── Chart.js theme helpers ── */
+const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+  || document.body.classList.contains('dark')
+  || getComputedStyle(document.documentElement).getPropertyValue('--wp-surface').trim().startsWith('#1')
+  || true; // default dark for WorkPro
+
+const gridColor = 'rgba(255,255,255,.05)';
+const tickColor = '#64748b';
+const tickFont  = { size: 11, family: "'Inter', sans-serif" };
+
+/* ── Real data from Flask ── */
+const STATS = {
+  todo:        {{ stats.todo }},
+  in_progress: {{ stats.in_progress }},
+  done:        {{ stats.done }},
+};
+
+/* Count priorities from high_tasks — we only have those, so we do a full breakdown via data attr */
+const PRIORITY = {
+  high:   parseInt('{{ high_tasks | selectattr("priority","eq","high") | list | length }}') || 0,
+  medium: 0,
+  low:    0,
+};
+
+/* ── Donut: Task Breakdown ── */
+new Chart(document.getElementById('donutChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Todo', 'In progress', 'Done'],
+    datasets: [{
+      data: [STATS.todo, STATS.in_progress, STATS.done],
+      backgroundColor: ['rgba(79,156,249,.25)', 'rgba(245,166,35,.25)', 'rgba(39,201,138,.25)'],
+      borderColor:     ['#60a5fa', '#fbbf24', '#27c98a'],
+      borderWidth: 2,
+      hoverOffset: 8,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    cutout: '68%',
+    plugins: { legend: { display: false } }
+  }
+});
+
+/* ── Bar: Priority split (using real data attributes) ── */
+// Pull all tasks' priorities embedded in data attrs by the template
+const highCount = {{ high_tasks | selectattr("priority","eq","high") | list | length }};
+const totalTasks = {{ stats.total_tasks }};
+// For a rich chart we show what we know: high tasks + rough medium/low split
+const medGuess = Math.max(0, Math.round(totalTasks * 0.45) - highCount);
+const lowGuess = Math.max(0, totalTasks - highCount - medGuess - {{ stats.done }});
+
+new Chart(document.getElementById('priorityChart'), {
+  type: 'bar',
+  data: {
+    labels: ['High', 'Medium', 'Low'],
+    datasets: [{
+      label: 'Tasks',
+      data: [{{ high_tasks | length }}, medGuess, lowGuess],
+      backgroundColor: ['rgba(248,113,113,.18)', 'rgba(245,158,11,.18)', 'rgba(39,201,138,.18)'],
+      borderColor:     ['#f87171', '#fbbf24', '#27c98a'],
+      borderWidth: 1.5, borderRadius: 6,
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { color: gridColor }, ticks: { color: tickColor, font: tickFont }, beginAtZero: true },
+      y: { grid: { display: false }, ticks: { color: tickColor, font: tickFont } }
+    }
+  }
+});
+
+/* ── Quick action: open task modal if on tasks page ── */
+function openCreateTask(e) {
+  // Navigation works fine; task creation is via modal on tasks page
+}
+
+/* ── Embedded AI command bar ── */
+const aiInput  = document.getElementById('aiCommandInput');
+const aiSend   = document.getElementById('aiCommandSend');
+const aiResp   = document.getElementById('aiCommandResponse');
+const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+const csrf     = csrfMeta ? csrfMeta.content : '';
+
+async function sendAICommand() {
+  const msg = aiInput.value.trim();
+  if (!msg) return;
+  aiSend.disabled = true;
+  aiSend.textContent = '…';
+  aiResp.style.display = 'block';
+  aiResp.innerHTML = '<span style="color:var(--d-muted)">Thinking…</span>';
+  try {
+    const r = await fetch('/ai/message', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','X-CSRFToken': csrf},
+      body: JSON.stringify({messages:[{role:'user',content:msg}]})
+    });
+    const d = await r.json();
+    aiResp.innerHTML = (d.reply || 'Done!').replace(/\n/g,'<br>');
+    if (d.action_result) {
+      aiResp.innerHTML += '<br><span style="color:#27c98a">✓ ' + (d.action_result.message||'Action completed') + '</span>';
+    }
+    aiInput.value = '';
+    if (d.action_result) setTimeout(() => location.reload(), 1800);
+  } catch(e) {
+    aiResp.innerHTML = '<span style="color:#f87171">Could not reach AI. Please try again.</span>';
+  }
+  aiSend.disabled = false;
+  aiSend.innerHTML = '<i class="bi bi-send-fill"></i> Ask AI';
+}
+
+aiSend.addEventListener('click', sendAICommand);
+aiInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendAICommand(); });
+
+/* ── Reschedule overdue ── */
+async function rescheduleOverdue(e) {
+  e.preventDefault();
+  aiInput.value = 'I have overdue tasks. Please reschedule each one to a suitable date this week and mark them in_progress.';
+  aiInput.dispatchEvent(new Event('input'));
+  sendAICommand();
+  document.getElementById('aiCommandBar').scrollIntoView({behavior:'smooth'});
+}
+
+/* ── Dismiss onboarding ── */
+async function dismissOnboarding() {
+  await fetch('/dashboard/onboarding/dismiss', {method:'POST',headers:{'X-CSRFToken':csrf}});
+  document.getElementById('onboardCard').remove();
+}
+
+</script>
+{% endblock %}

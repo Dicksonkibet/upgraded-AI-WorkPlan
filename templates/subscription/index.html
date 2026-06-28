@@ -1,0 +1,429 @@
+{% extends "base.html" %}
+{% block title %}Subscription<!-- Referral promo banner -->
+<div class="container-fluid pb-4">
+  <div class="card border-0 rounded-4 p-4" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff">
+    <div class="row align-items-center g-3">
+      <div class="col">
+        <h5 class="fw-bold mb-1">💰 Earn by Sharing WorkPro</h5>
+        <p class="mb-0" style="font-size:13px;opacity:.9">
+          Invite friends and earn <strong>20% commission</strong> on every subscription — automatically paid to your M-Pesa.
+        </p>
+      </div>
+      <div class="col-auto">
+        <a href="{{ url_for('referral.index') }}" class="btn btn-light fw-semibold">
+          <i class="bi bi-people-fill me-2"></i>Get Referral Link
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block page_title %}Subscription{% endblock %}
+{% block page_sub %}Manage your WorkPro plan{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+
+  <!-- Current Plan Banner -->
+  {% if current_user.is_pro %}
+  <div style="background:linear-gradient(135deg,#4F46E5,#0891B2);border-radius:16px;padding:28px 32px;color:#fff;margin-bottom:24px;position:relative;overflow:hidden">
+    <div style="position:absolute;top:-40px;right:-40px;width:200px;height:200px;background:rgba(255,255,255,.06);border-radius:50%"></div>
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+      <div>
+        <div style="font-size:12px;opacity:.75;margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em">Current Plan</div>
+        <div style="font-size:2rem;font-weight:800"><i class="bi bi-stars me-2"></i>Pro Plan</div>
+        <div style="opacity:.8;font-size:13px;margin-top:4px">
+          {% if sub.expires_at %}Renews {{ sub.expires_at.strftime('%B %d, %Y') }}{% else %}Active{% endif %}
+          · {{ sub.billing_cycle|title if sub.billing_cycle else '' }} billing
+        </div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:12px;opacity:.7">Amount paid</div>
+        <div style="font-size:1.5rem;font-weight:700">KES {{ "{:,.0f}".format(sub.amount_paid or 0) }}</div>
+        <form method="POST" action="{{ url_for('subscription.cancel') }}" class="mt-2"
+              onsubmit="return confirm('Cancel your Pro subscription? You will keep Pro features until expiry.')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+          <button type="submit" class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);font-size:12px">
+            Cancel subscription
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div style="background:var(--wp-card);border:1px solid var(--wp-border);border-radius:16px;padding:24px;margin-bottom:24px">
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+      <div class="stat-icon" style="background:rgba(107,114,128,.1);color:var(--wp-muted)"><i class="bi bi-person"></i></div>
+      <div class="flex-grow-1">
+        <div style="font-weight:700;font-size:16px">Free Plan</div>
+        <div style="color:var(--wp-muted);font-size:13px">Upgrade to Pro for unlimited features and AI management</div>
+      </div>
+      <button class="btn btn-wp-primary" onclick="document.getElementById('upgradeSection').scrollIntoView({behavior:'smooth'})">
+        <i class="bi bi-stars me-1"></i> Upgrade to Pro
+      </button>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="row g-4">
+
+    <!-- Usage Meters -->
+    <div class="col-lg-4">
+      <div class="wp-card h-100">
+        <div class="wp-card-header">
+          <h6><i class="bi bi-bar-chart me-2" style="color:var(--wp-accent)"></i>Usage</h6>
+        </div>
+        <div class="wp-card-body">
+          {% set task_pct = (usage.tasks / limits.tasks * 100) if limits.tasks else 0 %}
+          {% set doc_pct  = (usage.docs  / limits.docs  * 100) if limits.docs  else 0 %}
+          {% set ai_pct   = (usage.ai_msgs / limits.ai_msgs * 100) if limits.ai_msgs else 0 %}
+
+          <div class="mb-4">
+            <div class="d-flex justify-content-between mb-1">
+              <span style="font-size:13px;font-weight:500"><i class="bi bi-check2-square me-1"></i>Tasks</span>
+              <span style="font-size:12px;color:var(--wp-muted)">
+                {{ usage.tasks }} / {{ limits.tasks if limits.tasks else '∞' }}
+              </span>
+            </div>
+            {% if limits.tasks %}
+            <div class="usage-bar">
+              <div class="usage-bar-fill {{ 'danger' if task_pct >= 90 else 'warn' if task_pct >= 70 else 'ok' }}"
+                   style="width:{{ [task_pct,100]|min }}%"></div>
+            </div>
+            {% else %}
+            <div class="usage-bar"><div class="usage-bar-fill ok" style="width:30%"></div></div>
+            <div style="font-size:11px;color:var(--wp-accent);margin-top:3px">Unlimited</div>
+            {% endif %}
+          </div>
+
+          <div class="mb-4">
+            <div class="d-flex justify-content-between mb-1">
+              <span style="font-size:13px;font-weight:500"><i class="bi bi-file-text me-1"></i>Documents</span>
+              <span style="font-size:12px;color:var(--wp-muted)">
+                {{ usage.docs }} / {{ limits.docs if limits.docs else '∞' }}
+              </span>
+            </div>
+            {% if limits.docs %}
+            <div class="usage-bar">
+              <div class="usage-bar-fill {{ 'danger' if doc_pct >= 90 else 'warn' if doc_pct >= 70 else 'ok' }}"
+                   style="width:{{ [doc_pct,100]|min }}%"></div>
+            </div>
+            {% else %}
+            <div class="usage-bar"><div class="usage-bar-fill ok" style="width:30%"></div></div>
+            <div style="font-size:11px;color:var(--wp-accent);margin-top:3px">Unlimited</div>
+            {% endif %}
+          </div>
+
+          <div>
+            <div class="d-flex justify-content-between mb-1">
+              <span style="font-size:13px;font-weight:500"><i class="bi bi-robot me-1"></i>AI messages today</span>
+              <span style="font-size:12px;color:var(--wp-muted)">
+                {{ usage.ai_msgs }} / {{ limits.ai_msgs if limits.ai_msgs else '∞' }}
+              </span>
+            </div>
+            {% if limits.ai_msgs %}
+            <div class="usage-bar">
+              <div class="usage-bar-fill {{ 'danger' if ai_pct >= 90 else 'warn' if ai_pct >= 70 else 'ok' }}"
+                   style="width:{{ [ai_pct,100]|min }}%"></div>
+            </div>
+            {% else %}
+            <div class="usage-bar"><div class="usage-bar-fill ok" style="width:30%"></div></div>
+            <div style="font-size:11px;color:var(--wp-accent);margin-top:3px">Unlimited</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Plan comparison -->
+    <div class="col-lg-8">
+      <div class="wp-card">
+        <div class="wp-card-header">
+          <h6><i class="bi bi-layers me-2" style="color:var(--wp-accent)"></i>Plan Features</h6>
+        </div>
+        <div style="overflow:auto">
+          <table class="wp-table">
+            <thead>
+              <tr>
+                <th>Feature</th>
+                <th class="text-center">Free</th>
+                <th class="text-center" style="color:var(--wp-accent)">Pro ⚡</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in [
+                ('Tasks', '20 max', 'Unlimited'),
+                ('Documents', '10 max', 'Unlimited'),
+                ('AI messages', '5/day', 'Unlimited'),
+                ('AI system management', '—', '✓'),
+                ('Team members', '1', 'Unlimited'),
+                ('Custom roles', '—', '✓'),
+                ('Admin panel', '—', '✓'),
+                ('AI document generation', '—', '✓'),
+                ('Activity audit log', '✓', '✓'),
+                ('Daily planner', '✓', '✓'),
+              ] %}
+              <tr>
+                <td style="font-size:13px">{{ row[0] }}</td>
+                <td class="text-center" style="font-size:13px;color:var(--wp-muted)">{{ row[1] }}</td>
+               <td class="text-center" style="font-size:13px;color:{% if row[2] == '—' %}var(--wp-muted){% else %}#10B981{% endif %};font-weight:600">{{ row[2] }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Upgrade Section -->
+  {% if not current_user.is_pro %}
+  <div id="upgradeSection" class="mt-4">
+    <div class="wp-card">
+      <div class="wp-card-header">
+        <h6><i class="bi bi-stars me-2" style="color:var(--wp-accent)"></i>Upgrade to Pro</h6>
+      </div>
+      <div class="wp-card-body">
+        <div class="row g-4 align-items-start">
+          <div class="col-md-8">
+            <!-- Billing toggle -->
+            <div class="d-flex align-items-center gap-3 mb-4">
+              <span class="fw-600" style="font-size:13px">Billing:</span>
+              <div class="d-flex gap-2">
+                <button class="btn btn-wp-primary btn-sm" id="btnMonthly" onclick="selectCycle('monthly')">Monthly — KES {{ pro_monthly }}/mo</button>
+                <button class="btn btn-wp-ghost btn-sm" id="btnAnnual" onclick="selectCycle('annual')">Annual — KES {{ pro_annual }}/yr <span class="wp-badge wp-badge-done ms-1">Save 25%</span></button>
+              </div>
+            </div>
+
+            <!-- Phone -->
+            <div class="mb-3">
+              <label class="form-label"><i class="bi bi-phone me-1"></i>M-Pesa Phone Number</label>
+              <div class="input-group" style="max-width:340px">
+                <span class="input-group-text" style="background:var(--wp-surface);border-color:var(--wp-border);color:var(--wp-muted)">🇰🇪</span>
+                <input type="tel" id="mpesaPhone" class="form-control" placeholder="0712 345 678" maxlength="13"/>
+              </div>
+              <div style="font-size:12px;color:var(--wp-muted);margin-top:5px">Enter your Safaricom M-Pesa number. An STK push will be sent to your phone.</div>
+            </div>
+
+            <!-- Promo Code -->
+            <div class="mb-3">
+              <label class="form-label"><i class="bi bi-tag me-1"></i>Promo Code <span style="font-size:12px;color:var(--wp-muted);font-weight:400">(optional)</span></label>
+              <div class="input-group" style="max-width:340px">
+                <input type="text" id="promoCode" class="form-control" placeholder="Enter code"
+                  maxlength="30" style="text-transform:uppercase;font-family:monospace;letter-spacing:.06em"
+                  oninput="this.value=this.value.toUpperCase()">
+                <button class="btn btn-outline-secondary" type="button" onclick="applyPromo()" id="promoBtn">
+                  Apply
+                </button>
+              </div>
+              <div id="promoResult" style="font-size:12px;margin-top:5px"></div>
+            </div>
+
+            <!-- Amount display -->
+            <div id="amountDisplay" style="background:var(--wp-bg);border-radius:10px;padding:14px 16px;margin-bottom:20px;border:1px solid var(--wp-border)">
+              <div style="font-size:12px;color:var(--wp-muted)">Amount to pay</div>
+              <div style="font-size:1.5rem;font-weight:800;color:var(--wp-accent)" id="amountText">KES {{ pro_monthly }}</div>
+              <div style="font-size:12px;color:var(--wp-muted)" id="cycleText">Monthly · renews in 30 days</div>
+            </div>
+
+            <button class="btn btn-wp-primary" id="payBtn" onclick="initiatePayment()">
+              <i class="bi bi-phone me-1"></i> Pay with M-Pesa
+            </button>
+          </div>
+          <div class="col-md-4">
+            <div style="background:rgba(16,185,129,.05);border:1px solid rgba(16,185,129,.2);border-radius:12px;padding:16px">
+              <div style="font-weight:700;font-size:13px;margin-bottom:12px"><i class="bi bi-shield-check me-1" style="color:#10B981"></i>Secure payment</div>
+              <ul style="list-style:none;padding:0;margin:0;font-size:12px;color:var(--wp-muted);display:flex;flex-direction:column;gap:8px">
+                <li><i class="bi bi-check-circle me-1" style="color:#10B981"></i>Powered by Safaricom Daraja API</li>
+                <li><i class="bi bi-check-circle me-1" style="color:#10B981"></i>STK push sent to your phone</li>
+                <li><i class="bi bi-check-circle me-1" style="color:#10B981"></i>Instant activation on payment</li>
+                <li><i class="bi bi-check-circle me-1" style="color:#10B981"></i>Cancel anytime, no penalties</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Billing History -->
+  {% if history %}
+  <div class="mt-4">
+    <div class="wp-card">
+      <div class="wp-card-header">
+        <h6><i class="bi bi-receipt me-2" style="color:var(--wp-accent)"></i>Billing History</h6>
+      </div>
+      <div style="overflow:auto">
+        <table class="wp-table">
+          <thead>
+            <tr><th>Date</th><th>Plan</th><th>Amount</th><th>Status</th><th>Receipt</th></tr>
+          </thead>
+          <tbody>
+            {% for p in history %}
+            <tr>
+              <td style="font-size:12px">{{ p.created_at.strftime('%b %d, %Y %H:%M') }}</td>
+              <td><span class="wp-badge wp-badge-pro">Pro {{ p.billing_cycle|title }}</span></td>
+              <td style="font-weight:600">KES {{ "{:,.0f}".format(p.amount) }}</td>
+              <td>
+                <span class="wp-badge {{ 'wp-badge-done' if p.status == 'completed' else 'wp-badge-high' if p.status == 'failed' else 'wp-badge-todo' }}">
+                  {{ p.status|title }}
+                </span>
+              </td>
+              <td style="font-family:monospace;font-size:12px;color:var(--wp-muted)">{{ p.mpesa_receipt or '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+<!-- Payment status modal -->
+<div class="modal fade" id="payModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-body text-center p-5">
+        <div id="payModalIcon" style="font-size:3rem;margin-bottom:16px">📱</div>
+        <h5 id="payModalTitle">STK Push Sent!</h5>
+        <p id="payModalText" style="color:var(--wp-muted);font-size:13px"></p>
+        <div id="payModalSpinner" class="spinner-border text-primary mt-3" role="status" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const MONTHLY = {{ pro_monthly }};
+const ANNUAL  = {{ pro_annual }};
+let cycle = 'monthly';
+let pollInterval;
+let currentPaymentId;
+let appliedPromo = null;   // { code, discount, final_amount }
+
+function selectCycle(c) {
+  cycle = c;
+  appliedPromo = null;
+  document.getElementById('promoResult').textContent = '';
+  document.getElementById('promoCode').value = '';
+  if (c === 'monthly') {
+    document.getElementById('btnMonthly').className = 'btn btn-wp-primary btn-sm';
+    document.getElementById('btnAnnual').className  = 'btn btn-wp-ghost btn-sm';
+    document.getElementById('amountText').textContent = 'KES ' + MONTHLY.toLocaleString();
+    document.getElementById('cycleText').textContent  = 'Monthly · renews in 30 days';
+  } else {
+    document.getElementById('btnMonthly').className = 'btn btn-wp-ghost btn-sm';
+    document.getElementById('btnAnnual').className  = 'btn btn-wp-primary btn-sm';
+    document.getElementById('amountText').textContent = 'KES ' + ANNUAL.toLocaleString();
+    document.getElementById('cycleText').textContent  = 'Annual · renews in 365 days (save 25%)';
+  }
+}
+
+async function applyPromo() {
+  const code = document.getElementById('promoCode').value.trim();
+  if (!code) return;
+  const amount = cycle === 'monthly' ? MONTHLY : ANNUAL;
+  const btn = document.getElementById('promoBtn');
+  btn.disabled = true; btn.textContent = 'Checking…';
+  const result = document.getElementById('promoResult');
+  try {
+    const r = await fetch('/subscription/validate-promo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+      body: JSON.stringify({ code, amount })
+    });
+    const d = await r.json();
+    if (d.error) {
+      result.innerHTML = `<span style="color:#ef4444"><i class="bi bi-x-circle me-1"></i>${d.error}</span>`;
+      appliedPromo = null;
+    } else {
+      appliedPromo = { code, discount: d.discount, final_amount: d.final_amount };
+      result.innerHTML = `<span style="color:#22c55e"><i class="bi bi-check-circle me-1"></i>Code applied! You save KES ${d.discount.toLocaleString()} — pay KES ${d.final_amount.toLocaleString()}</span>`;
+      document.getElementById('amountText').innerHTML =
+        `KES ${d.final_amount.toLocaleString()} <span style="font-size:.8rem;text-decoration:line-through;opacity:.5">KES ${amount.toLocaleString()}</span>`;
+    }
+  } catch(e) {
+    result.innerHTML = `<span style="color:#ef4444">Network error.</span>`;
+  }
+  btn.disabled = false; btn.textContent = 'Apply';
+}
+
+async function initiatePayment() {
+  const phone = document.getElementById('mpesaPhone').value.trim();
+  if (!phone) { alert('Please enter your M-Pesa phone number.'); return; }
+
+  const btn = document.getElementById('payBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Sending...';
+
+  try {
+    const payload = { phone, billing_cycle: cycle };
+    if (appliedPromo) payload.promo_code = appliedPromo.code;
+
+    const r = await fetch('/subscription/initiate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+      body: JSON.stringify(payload)
+    });
+    const d = await r.json();
+
+    if (d.error) {
+      alert('Error: ' + d.error);
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-phone me-1"></i> Pay with M-Pesa';
+      return;
+    }
+
+    currentPaymentId = d.payment_id;
+    showPayModal('📱', 'Check your phone!',
+      `An M-Pesa STK push has been sent to ${phone}. Enter your PIN to complete payment of KES ${d.amount.toLocaleString()}.`);
+
+    // Start polling
+    pollInterval = setInterval(() => pollPayment(d.payment_id), 4000);
+
+  } catch(e) {
+    alert('Network error. Please try again.');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-phone me-1"></i> Pay with M-Pesa';
+  }
+}
+
+function showPayModal(icon, title, text) {
+  document.getElementById('payModalIcon').textContent = icon;
+  document.getElementById('payModalTitle').textContent = title;
+  document.getElementById('payModalText').textContent = text;
+  document.getElementById('payModalSpinner').style.display = 'block';
+  new bootstrap.Modal(document.getElementById('payModal')).show();
+}
+
+async function pollPayment(paymentId) {
+  try {
+    const r = await fetch(`/subscription/poll/${paymentId}`);
+    const d = await r.json();
+
+    if (d.status === 'completed') {
+      clearInterval(pollInterval);
+      document.getElementById('payModalIcon').textContent = '🎉';
+      document.getElementById('payModalTitle').textContent = 'Payment successful!';
+      document.getElementById('payModalText').textContent = 'Your Pro plan is now active. Refreshing...';
+      document.getElementById('payModalSpinner').style.display = 'none';
+      setTimeout(() => location.reload(), 2000);
+    } else if (['failed','cancelled'].includes(d.status)) {
+      clearInterval(pollInterval);
+      document.getElementById('payModalIcon').textContent = '❌';
+      document.getElementById('payModalTitle').textContent = 'Payment ' + d.status;
+      document.getElementById('payModalText').textContent = 'Please try again.';
+      document.getElementById('payModalSpinner').style.display = 'none';
+      const btn = document.getElementById('payBtn');
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-phone me-1"></i> Pay with M-Pesa'; }
+    }
+  } catch(e) {}
+}
+</script>
+{% endblock %}

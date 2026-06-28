@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="{{ current_user.theme if current_user.is_authenticated else 'light' }}">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="csrf-token" content="{{ csrf_token() }}"/>
+<title>{% block title %}WorkPro{% endblock %} — WorkPro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"/>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"/>
+<style>
+/* ── Design Tokens ─────────────────────────────────────────── */
+[data-bs-theme="light"] {
+  --wp-bg:        #F4F6FA;
+  --wp-surface:   #FFFFFF;
+  --wp-card:      #FFFFFF;
+  --wp-border:    #E2E8F0;
+  --wp-text:      #1A202C;
+  --wp-muted:     #718096;
+  --wp-accent:    #4F46E5;
+  --wp-accent2:   #06B6D4;
+  --wp-accent-bg: rgba(79,70,229,.08);
+  --wp-sidebar-w: 252px;
+  --wp-topbar-h:  60px;
+  --wp-shadow:    0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.04);
+  --wp-shadow-md: 0 4px 20px rgba(0,0,0,.08);
+}
+[data-bs-theme="dark"] {
+  --wp-bg:        #0d1117;
+  --wp-surface:   #161b22;
+  --wp-card:      #1c2128;
+  --wp-border:    #30363d;
+  --wp-text:      #e6edf3;
+  --wp-muted:     #8b949e;
+  --wp-accent:    #7c6aff;
+  --wp-accent2:   #00d4aa;
+  --wp-accent-bg: rgba(124,106,255,.1);
+  --wp-sidebar-w: 252px;
+  --wp-topbar-h:  60px;
+  --wp-shadow:    0 1px 3px rgba(0,0,0,.2), 0 4px 16px rgba(0,0,0,.15);
+  --wp-shadow-md: 0 4px 20px rgba(0,0,0,.3);
+}
+
+/* ── Base ──────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+html, body {
+  height: 100%;
+  font-family: 'Inter', sans-serif;
+  background: var(--wp-bg);
+  color: var(--wp-text);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.text-wp-muted { color: var(--wp-muted) !important; }
+.border-wp { border-color: var(--wp-border) !important; }
+.bg-wp-surface { background: var(--wp-surface) !important; }
+
+/* ── Layout ────────────────────────────────────────────────── */
+.wp-app  { display: flex; height: 100vh; overflow: hidden; }
+.wp-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+.wp-content { flex: 1; overflow-y: auto; padding: 24px 28px; }
+
+/* ── Sidebar ───────────────────────────────────────────────── */
+.wp-sidebar {
+  width: var(--wp-sidebar-w);
+  min-width: var(--wp-sidebar-w);
+  background: var(--wp-surface);
+  border-right: 1px solid var(--wp-border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  transition: transform .25s ease;
+  scrollbar-width: none;
+}
+.wp-sidebar::-webkit-scrollbar { display: none; }
+
+.wp-brand {
+  padding: 18px 16px 14px;
+  border-bottom: 1px solid var(--wp-border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.wp-brand-logo {
+  width: 36px; height: 36px;
+  background: linear-gradient(135deg, var(--wp-accent), var(--wp-accent2));
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px; flex-shrink: 0; color: #fff;
+}
+.wp-brand-text .name { font-size: 15px; font-weight: 700; line-height: 1.1; }
+.wp-brand-text .sub  { font-size: 11px; color: var(--wp-muted); }
+
+.wp-plan-badge {
+  margin: 10px 12px 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.wp-plan-badge.free {
+  background: var(--wp-bg);
+  color: var(--wp-muted);
+  border: 1px solid var(--wp-border);
+}
+.wp-plan-badge.pro {
+  background: linear-gradient(135deg, rgba(79,70,229,.1), rgba(6,182,212,.1));
+  color: var(--wp-accent);
+  border: 1px solid rgba(79,70,229,.2);
+}
+
+.wp-nav-section {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--wp-muted);
+  padding: 16px 16px 6px;
+}
+.wp-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  margin: 1px 8px;
+  border-radius: 8px;
+  color: var(--wp-muted);
+  font-weight: 500;
+  font-size: 13.5px;
+  text-decoration: none;
+  transition: all .15s;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.wp-nav-item:hover { color: var(--wp-text); background: var(--wp-bg); }
+.wp-nav-item.active {
+  color: var(--wp-accent);
+  background: var(--wp-accent-bg);
+  font-weight: 600;
+}
+.wp-nav-item i { font-size: 16px; flex-shrink: 0; width: 18px; }
+
+.wp-avatar {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; color: #fff;
+  flex-shrink: 0;
+}
+
+/* ── Topbar ────────────────────────────────────────────────── */
+.wp-topbar {
+  height: var(--wp-topbar-h);
+  min-height: var(--wp-topbar-h);
+  background: var(--wp-surface);
+  border-bottom: 1px solid var(--wp-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  gap: 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.page-title { font-size: 15px; font-weight: 600; margin: 0; line-height: 1.2; }
+.page-sub   { font-size: 12px; color: var(--wp-muted); margin: 0; }
+
+/* ── Cards ─────────────────────────────────────────────────── */
+.wp-card {
+  background: var(--wp-card);
+  border: 1px solid var(--wp-border);
+  border-radius: 12px;
+  box-shadow: var(--wp-shadow);
+}
+.wp-card-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--wp-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.wp-card-header h6 { margin: 0; font-weight: 600; font-size: 14px; }
+.wp-card-body { padding: 20px; }
+
+/* ── Stat Cards ────────────────────────────────────────────── */
+.stat-card {
+  background: var(--wp-card);
+  border: 1px solid var(--wp-border);
+  border-radius: 12px;
+  padding: 20px;
+  transition: box-shadow .2s;
+}
+.stat-card:hover { box-shadow: var(--wp-shadow-md); }
+.stat-num { font-size: 2rem; font-weight: 800; line-height: 1; }
+.stat-label { font-size: 12px; color: var(--wp-muted); font-weight: 500; margin-top: 4px; }
+.stat-icon {
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+}
+
+/* ── Usage bar ─────────────────────────────────────────────── */
+.usage-bar { height: 5px; background: var(--wp-border); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+.usage-bar-fill { height: 100%; border-radius: 3px; transition: width .4s; }
+.usage-bar-fill.ok     { background: #10B981; }
+.usage-bar-fill.warn   { background: #F59E0B; }
+.usage-bar-fill.danger { background: #EF4444; }
+
+/* ── Buttons ───────────────────────────────────────────────── */
+.btn-wp-primary {
+  background: var(--wp-accent);
+  color: #fff;
+  border: none;
+}
+.btn-wp-primary:hover { background: var(--wp-accent); filter: brightness(1.1); color: #fff; }
+.btn-wp-ghost {
+  background: transparent;
+  border: 1px solid var(--wp-border);
+  color: var(--wp-text);
+}
+.btn-wp-ghost:hover { background: var(--wp-bg); color: var(--wp-text); }
+.btn-wp-danger { background: #EF4444; color: #fff; border: none; }
+
+/* ── Badges ────────────────────────────────────────────────── */
+.wp-badge {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 2px 8px; border-radius: 50px;
+  font-size: 11px; font-weight: 600; white-space: nowrap;
+}
+.wp-badge-admin   { background: rgba(239,68,68,.12);  color: #B91C1C; }
+.wp-badge-manager { background: rgba(245,158,11,.12); color: #92400E; }
+.wp-badge-user    { background: var(--wp-accent-bg);  color: var(--wp-accent); }
+.wp-badge-todo    { background: rgba(107,114,128,.1); color: var(--wp-muted); }
+.wp-badge-in_progress { background: rgba(59,130,246,.12); color: #1D4ED8; }
+.wp-badge-done    { background: rgba(16,185,129,.12); color: #065F46; }
+.wp-badge-high    { background: rgba(239,68,68,.1);   color: #B91C1C; }
+.wp-badge-medium  { background: rgba(245,158,11,.1);  color: #92400E; }
+.wp-badge-low     { background: rgba(16,185,129,.1);  color: #065F46; }
+.wp-badge-pro     { background: linear-gradient(135deg,rgba(79,70,229,.15),rgba(6,182,212,.15)); color: var(--wp-accent); }
+.wp-badge-free    { background: var(--wp-bg); color: var(--wp-muted); border: 1px solid var(--wp-border); }
+
+/* ── Pro upgrade banner ────────────────────────────────────── */
+.pro-upgrade-banner {
+  background: linear-gradient(135deg, rgba(79,70,229,.06), rgba(6,182,212,.06));
+  border: 1px solid rgba(79,70,229,.2);
+  border-radius: 12px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.pro-upgrade-banner .icon { font-size: 20px; color: var(--wp-accent); flex-shrink: 0; }
+.pro-upgrade-banner .text { flex: 1; font-size: 13px; }
+.pro-upgrade-banner .text strong { color: var(--wp-accent); }
+
+/* ── Table ─────────────────────────────────────────────────── */
+.wp-table { width: 100%; border-collapse: collapse; }
+.wp-table th {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--wp-muted);
+  padding: 10px 16px; border-bottom: 1px solid var(--wp-border);
+  text-align: left;
+}
+.wp-table td { padding: 12px 16px; border-bottom: 1px solid var(--wp-border); vertical-align: middle; }
+.wp-table tr:last-child td { border-bottom: none; }
+.wp-table tr:hover td { background: var(--wp-bg); }
+
+/* ── Forms ─────────────────────────────────────────────────── */
+.form-control, .form-select {
+  background: var(--wp-surface);
+  border: 1px solid var(--wp-border);
+  color: var(--wp-text);
+  border-radius: 8px;
+  font-size: 13px;
+}
+.form-control:focus, .form-select:focus {
+  background: var(--wp-surface);
+  border-color: var(--wp-accent);
+  color: var(--wp-text);
+  box-shadow: 0 0 0 3px rgba(79,70,229,.12);
+}
+.form-label { font-size: 13px; font-weight: 500; margin-bottom: 5px; }
+
+/* ── Auth ──────────────────────────────────────────────────── */
+.auth-wrap {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: linear-gradient(160deg, #F0F0FF, #F8FAFF, #E8F8FC);
+}
+.auth-card {
+  width: 100%;
+  max-width: 440px;
+  background: var(--wp-card);
+  border: 1px solid var(--wp-border);
+  border-radius: 16px;
+  padding: 36px 32px;
+  box-shadow: var(--wp-shadow-md);
+}
+.auth-logo {
+  width: 48px; height: 48px;
+  background: linear-gradient(135deg, var(--wp-accent), var(--wp-accent2));
+  border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; margin: 0 auto 20px; color: #fff;
+}
+
+/* ── Modals ────────────────────────────────────────────────── */
+.modal-content {
+  background: var(--wp-card);
+  border: 1px solid var(--wp-border);
+  border-radius: 16px;
+  color: var(--wp-text);
+}
+.modal-header, .modal-footer { border-color: var(--wp-border); }
+
+/* ── Dropdown ──────────────────────────────────────────────── */
+.dropdown-menu {
+  background: var(--wp-card);
+  border: 1px solid var(--wp-border);
+  border-radius: 10px;
+  box-shadow: var(--wp-shadow-md);
+  font-size: 13px;
+}
+.dropdown-item { color: var(--wp-text); padding: 8px 14px; }
+.dropdown-item:hover { background: var(--wp-bg); color: var(--wp-text); }
+.dropdown-divider { border-color: var(--wp-border); }
+
+/* ── Responsive ────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .wp-sidebar {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    transform: translateX(-100%);
+  }
+  .wp-sidebar.show { transform: translateX(0); }
+  .wp-sidebar-overlay { display: none; position: fixed; inset: 0; z-index: 999; background: rgba(0,0,0,.4); }
+  .wp-sidebar-overlay.show { display: block; }
+  .wp-content { padding: 16px; }
+  .wp-topbar { padding: 0 16px; }
+}
+
+/* ── Animations ────────────────────────────────────────────── */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.fade-in { animation: fadeIn .3s ease; }
+</style>
+{% block extra_head %}{% endblock %}
+</head>
+<body>
+
+{% if current_user.is_authenticated %}
+<div class="wp-app">
+
+  <!-- Sidebar overlay (mobile) -->
+  <div class="wp-sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+  <!-- ── Sidebar ──────────────────────────────────────────── -->
+  <aside class="wp-sidebar" id="wpSidebar">
+    <div class="wp-brand">
+      <div class="wp-brand-logo"><i class="bi bi-briefcase-fill"></i></div>
+      <div class="wp-brand-text">
+        <div class="name">WorkPro</div>
+        <div class="sub">Management System</div>
+      </div>
+    </div>
+
+    <!-- Plan badge -->
+    <div class="wp-plan-badge {{ 'pro' if current_user.is_pro else 'free' }}">
+      {% if current_user.is_pro %}
+        <i class="bi bi-stars"></i> Pro Plan
+      {% else %}
+        <i class="bi bi-person"></i> Free Plan &nbsp;·&nbsp; <a href="{{ url_for('subscription.index') }}" style="color:var(--wp-accent);text-decoration:none;font-size:10px">Upgrade</a>
+      {% endif %}
+    </div>
+
+    <nav class="flex-grow-1 py-2">
+      {% for section in menus %}
+      <div class="wp-nav-section">{{ section.section }}</div>
+      {% for item in section['items'] %}
+      <a href="{{ url_for(item.endpoint) }}"
+         class="wp-nav-item {% if request.endpoint == item.endpoint %}active{% endif %}">
+        <i class="bi {{ item.icon }}"></i>
+        {{ item.label }}
+        {% if item.endpoint == 'ai.chat' and not current_user.is_pro %}
+          <span class="wp-badge wp-badge-pro ms-auto" style="font-size:9px">PRO</span>
+        {% endif %}
+      </a>
+      {% endfor %}
+      {% endfor %}
+    </nav>
+
+    <!-- User strip -->
+    <div class="p-3" style="border-top:1px solid var(--wp-border)">
+      <div class="d-flex align-items-center gap-2">
+        <div class="wp-avatar" style="background:{{ current_user.avatar_color }}">
+          {{ current_user.initials }}
+        </div>
+        <div class="flex-grow-1 overflow-hidden">
+          <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+            {{ current_user.full_name }}
+          </div>
+          <div style="font-size:11px;color:var(--wp-muted)">
+            <span class="wp-badge wp-badge-{{ current_user.role.name }}">{{ current_user.role.name }}</span>
+          </div>
+        </div>
+        <div class="dropdown">
+          <button class="btn btn-sm btn-wp-ghost p-1" data-bs-toggle="dropdown"><i class="bi bi-three-dots-vertical"></i></button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item" href="{{ url_for('dashboard.profile') }}"><i class="bi bi-person me-2"></i>Profile</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('subscription.index') }}"><i class="bi bi-stars me-2"></i>Subscription</a></li>
+            <li><a class="dropdown-item" href="#" onclick="toggleTheme()"><i class="bi bi-sun me-2"></i>Toggle Theme</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item text-danger" href="{{ url_for('auth.logout') }}"><i class="bi bi-box-arrow-right me-2"></i>Log Out</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Main ─────────────────────────────────────────────── -->
+  <div class="wp-main">
+    <header class="wp-topbar">
+      <div class="d-flex align-items-center gap-3">
+        <button class="btn btn-sm btn-wp-ghost d-md-none p-1" onclick="openSidebar()">
+          <i class="bi bi-list fs-5"></i>
+        </button>
+        <div>
+          <p class="page-title">{% block page_title %}Dashboard{% endblock %}</p>
+          <p class="page-sub">{% block page_sub %}Welcome back{% endblock %}</p>
+        </div>
+      </div>
+<div class="d-flex align-items-center gap-2">
+  {% if not current_user.is_pro %}
+  <a href="{{ url_for('subscription.index') }}" class="btn btn-sm btn-wp-primary d-none d-md-flex align-items-center gap-1">
+    <i class="bi bi-stars"></i> Upgrade to Pro
+  </a>
+  {% endif %}
+  <button class="btn btn-sm btn-wp-ghost" onclick="toggleTheme()" title="Toggle theme">
+    <i class="bi bi-{% if current_user.theme == 'dark' %}sun{% else %}moon-stars{% endif %}"></i>
+  </button>
+  {% block topbar_actions %}{% endblock %}
+
+  <!-- User dropdown -->
+  <div class="dropdown">
+    <button class="btn btn-sm btn-wp-ghost d-flex align-items-center gap-2 px-2"
+            data-bs-toggle="dropdown" aria-expanded="false">
+      <div class="wp-avatar" style="background:{{ current_user.avatar_color }};width:28px;height:28px;font-size:11px">
+        {{ current_user.initials }}
+      </div>
+      <span class="d-none d-md-inline" style="font-size:13px;font-weight:500;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+        {{ current_user.first_name }}
+      </span>
+      <i class="bi bi-chevron-down" style="font-size:10px;color:var(--wp-muted)"></i>
+    </button>
+    <ul class="dropdown-menu dropdown-menu-end mt-1" style="min-width:180px">
+      <li>
+        <div class="px-3 py-2" style="border-bottom:1px solid var(--wp-border)">
+          <div style="font-size:13px;font-weight:600;color:var(--wp-text)">{{ current_user.full_name }}</div>
+          <div style="font-size:11px;color:var(--wp-muted)">{{ current_user.email }}</div>
+        </div>
+      </li>
+      <li><a class="dropdown-item" href="{{ url_for('dashboard.profile') }}"><i class="bi bi-person me-2"></i>Profile</a></li>
+      <li><a class="dropdown-item" href="{{ url_for('subscription.index') }}"><i class="bi bi-stars me-2"></i>Subscription</a></li>
+      <li><hr class="dropdown-divider"></li>
+      <li><a class="dropdown-item text-danger" href="{{ url_for('auth.logout') }}"><i class="bi bi-box-arrow-right me-2"></i>Log Out</a></li>
+    </ul>
+  </div>
+</div>
+    </header>
+
+    <div class="px-3 pt-2">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for cat, msg in messages %}
+          <div class="alert alert-{{ 'danger' if cat == 'error' else cat }} alert-dismissible fade show py-2 mb-2 fade-in" role="alert" style="font-size:13px">
+            {{ msg }}
+            <button type="button" class="btn-close btn-sm" data-bs-dismiss="alert"></button>
+          </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+    </div>
+
+    <div class="wp-content fade-in">
+      {% block content %}{% endblock %}
+    </div>
+  </div>
+
+</div>
+
+{% else %}
+{% block auth_content %}{% endblock %}
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+function getCsrf() {
+  return document.querySelector('meta[name="csrf-token"]')?.content || '';
+}
+function toggleTheme() {
+  fetch('/dashboard/toggle-theme', {method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()}})
+    .then(r=>r.json()).then(d=>{ document.documentElement.setAttribute('data-bs-theme', d.theme); });
+}
+function openSidebar() {
+  document.getElementById('wpSidebar').classList.add('show');
+  document.getElementById('sidebarOverlay').classList.add('show');
+}
+function closeSidebar() {
+  document.getElementById('wpSidebar').classList.remove('show');
+  document.getElementById('sidebarOverlay').classList.remove('show');
+}
+function timeSince(iso) {
+  const s = Math.floor((Date.now() - new Date(iso)) / 1000);
+  if (s < 60)    return 'just now';
+  if (s < 3600)  return Math.floor(s/60)+'m ago';
+  if (s < 86400) return Math.floor(s/3600)+'h ago';
+  return Math.floor(s/86400)+'d ago';
+}
+function showToast(msg, type='success') {
+  const div = document.createElement('div');
+  div.className = `alert alert-${type} position-fixed fade-in`;
+  div.style.cssText = 'bottom:20px;right:20px;z-index:9999;min-width:260px;font-size:13px;box-shadow:0 4px 20px rgba(0,0,0,.15)';
+  div.textContent = msg;
+  document.body.appendChild(div);
+  setTimeout(()=>div.remove(), 3500);
+}
+</script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

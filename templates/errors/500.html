@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Server Error{% endblock %}
+{% block content %}
+<div class="wp-empty" style="padding:80px 20px">
+  <div class="wp-empty-icon" style="font-size:60px;opacity:.2"><i class="bi bi-exclamation-triangle"></i></div>
+  <div class="wp-empty-title" style="font-size:22px">500 — Server Error</div>
+  <div class="wp-empty-sub" style="font-size:14px;margin-top:8px">Something went wrong on our end. Please try again.</div>
+  <a href="{{ url_for('dashboard.index') }}" class="btn btn-wp-primary mt-4">Back to Dashboard</a>
+</div>
+{% endblock %}

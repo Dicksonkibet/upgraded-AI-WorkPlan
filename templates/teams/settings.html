@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}{{ team.name }} — Settings{% endblock %}
+{% block page_title %}Team Settings{% endblock %}
+{% block page_sub %}{{ team.name }}{% endblock %}
+
+{% block content %}
+<div class="fade-in" style="max-width:720px">
+
+  <div class="d-flex align-items-center gap-2 mb-4">
+    <a href="{{ url_for('teams.detail', team_id=team.id) }}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i>
+    </a>
+    <h5 class="fw-bold mb-0">Team Settings</h5>
+  </div>
+
+  <!-- Edit team info -->
+  <div class="card border-0 shadow-sm rounded-4 mb-4" style="background:var(--wp-card)">
+    <div class="card-body p-4">
+      <h6 class="fw-bold mb-3">Team Information</h6>
+      <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="update">
+        <div class="mb-3">
+          <label class="form-label fw-semibold" style="font-size:13px">Team Name</label>
+          <input type="text" name="name" class="form-control" value="{{ team.name }}" required maxlength="120"
+            style="background:var(--wp-surface);border-color:var(--wp-border);color:var(--wp-text)">
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold" style="font-size:13px">Description</label>
+          <textarea name="description" class="form-control" rows="2" maxlength="500"
+            style="background:var(--wp-surface);border-color:var(--wp-border);color:var(--wp-text);resize:none">{{ team.description or '' }}</textarea>
+        </div>
+        <button type="submit" class="btn btn-sm fw-semibold" style="background:var(--wp-accent);color:#fff;border:none">
+          <i class="bi bi-save me-1"></i>Save Changes
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Invite code -->
+  <div class="card border-0 shadow-sm rounded-4 mb-4" style="background:var(--wp-card)">
+    <div class="card-body p-4">
+      <h6 class="fw-bold mb-1">Invite Code</h6>
+      <p class="text-wp-muted mb-3" style="font-size:13px">Share this code with people you want to invite. Regenerating it invalidates the old code.</p>
+      <div class="d-flex align-items-center gap-3 flex-wrap">
+        <code style="font-size:22px;font-weight:700;letter-spacing:.14em;color:var(--wp-accent)">{{ team.invite_code }}</code>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-secondary" onclick="copyCode('{{ team.invite_code }}')">
+            <i class="bi bi-clipboard me-1"></i>Copy
+          </button>
+          <form method="POST" onsubmit="return confirm('Regenerate invite code? The old code will stop working.')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="regenerate_invite">
+            <button type="submit" class="btn btn-sm btn-outline-warning">
+              <i class="bi bi-arrow-clockwise me-1"></i>Regenerate
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Members -->
+  <div class="card border-0 shadow-sm rounded-4 mb-4" style="background:var(--wp-card)">
+    <div class="card-body p-4">
+      <h6 class="fw-bold mb-3">Members ({{ team.member_count }})</h6>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0" style="font-size:13px">
+          <thead>
+            <tr style="color:var(--wp-muted)">
+              <th>Member</th>
+              <th>Role</th>
+              <th>Joined</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for m in team.active_members %}
+            <tr style="border-color:var(--wp-border)">
+              <td>
+                <div class="d-flex align-items-center gap-2">
+                  <div style="width:30px;height:30px;border-radius:50%;background:{{ m.user.avatar_color }};display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700">
+                    {{ m.user.initials }}
+                  </div>
+                  <div>
+                    <div class="fw-semibold">{{ m.user.full_name }}</div>
+                    <div class="text-wp-muted" style="font-size:11px">{{ m.user.email }}</div>
+                  </div>
+                </div>
+              </td>
+              <td>
+                {% if team.is_owner(current_user.id) and m.user_id != current_user.id and m.role != 'owner' %}
+                <form method="POST" class="d-inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="action" value="change_role">
+                  <input type="hidden" name="user_id" value="{{ m.user_id }}">
+                  <select name="role" class="form-select form-select-sm" onchange="this.form.submit()"
+                    style="background:var(--wp-surface);border-color:var(--wp-border);color:var(--wp-text);width:auto;font-size:12px">
+                    <option value="member" {% if m.role=='member' %}selected{% endif %}>Member</option>
+                    <option value="admin" {% if m.role=='admin' %}selected{% endif %}>Admin</option>
+                  </select>
+                </form>
+                {% else %}
+                <span class="badge" style="background:{% if m.role=='owner' %}var(--wp-accent-bg);color:var(--wp-accent){% else %}var(--wp-bg);color:var(--wp-muted){% endif %}">
+                  {{ m.role|title }}
+                </span>
+                {% endif %}
+              </td>
+              <td class="text-wp-muted">{{ m.joined_at.strftime('%b %d, %Y') }}</td>
+              <td>
+                {% if m.user_id != current_user.id and m.role != 'owner' %}
+                <form method="POST" onsubmit="return confirm('Remove {{ m.user.full_name }} from the team?')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="action" value="remove_member">
+                  <input type="hidden" name="user_id" value="{{ m.user_id }}">
+                  <button type="submit" class="btn btn-sm btn-outline-danger py-0" style="font-size:11px">
+                    <i class="bi bi-x-lg"></i> Remove
+                  </button>
+                </form>
+                {% else %}
+                <span class="text-wp-muted" style="font-size:11px">—</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Danger zone -->
+  {% if team.is_owner(current_user.id) %}
+  <div class="card border-0 shadow-sm rounded-4 mb-4" style="background:var(--wp-card);border:1px solid #fee2e2 !important">
+    <div class="card-body p-4">
+      <h6 class="fw-bold mb-1 text-danger">Danger Zone</h6>
+      <p class="text-wp-muted mb-3" style="font-size:13px">Deleting this team is permanent and cannot be undone.</p>
+      <form method="POST" onsubmit="return confirm('PERMANENTLY delete team \"{{ team.name }}\"? This cannot be undone.')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="delete">
+        <button type="submit" class="btn btn-sm btn-danger">
+          <i class="bi bi-trash3 me-1"></i>Delete Team
+        </button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+<script>
+function copyCode(code) {
+  navigator.clipboard.writeText(code);
+}
+</script>
+{% endblock %}

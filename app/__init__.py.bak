@@ -1,0 +1,333 @@
+import os
+import logging
+import logging.handlers
+from datetime import datetime
+from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import LoginManager
+from flask_migrate import Migrate, upgrade
+from flask_wtf.csrf import CSRFProtect
+from flask_caching import Cache
+from config import config
+
+db        = SQLAlchemy()
+login_mgr = LoginManager()
+migrate   = Migrate()
+csrf      = CSRFProtect()
+cache     = Cache()
+
+
+# ── Logging setup ─────────────────────────────────────────────────────────────
+
+def _configure_logging(app):
+    log_level = logging.DEBUG if app.debug else logging.INFO
+
+    fmt = logging.Formatter(
+        fmt='[%(asctime)s] %(levelname)-8s %(name)s — %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S',
+    )
+
+    console = logging.StreamHandler()
+    console.setLevel(log_level)
+    console.setFormatter(fmt)
+
+    app.logger.setLevel(log_level)
+    app.logger.handlers.clear()
+    app.logger.addHandler(console)
+    app.logger.propagate = False
+
+    if not app.debug:
+        log_dir = os.path.join(os.path.dirname(app.root_path), 'logs')
+        os.makedirs(log_dir, exist_ok=True)
+        file_handler = logging.handlers.RotatingFileHandler(
+            filename=os.path.join(log_dir, 'workpro.log'),
+            maxBytes=10 * 1024 * 1024,
+            backupCount=5,
+            encoding='utf-8',
+        )
+        file_handler.setLevel(logging.INFO)
+        file_handler.setFormatter(fmt)
+        app.logger.addHandler(file_handler)
+
+    logging.getLogger('werkzeug').setLevel(logging.WARNING)
+    logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
+    logging.getLogger('alembic').setLevel(logging.WARNING)
+
+    app.logger.info('Logging initialised (level=%s)', logging.getLevelName(log_level))
+
+
+# ── App factory ───────────────────────────────────────────────────────────────
+
+def create_app(env=None):
+    if env is None:
+        env = os.getenv('FLASK_ENV', 'default')
+
+    database_url = os.environ.get('DATABASE_URL', '')
+    if database_url.startswith('postgres://'):
+        os.environ['DATABASE_URL'] = database_url.replace('postgres://', 'postgresql://', 1)
+
+    app = Flask(__name__, template_folder='../templates', static_folder='static')
+    app.config.from_object(config[env])
+
+    db.init_app(app)
+    login_mgr.init_app(app)
+    migrate.init_app(app, db)
+    csrf.init_app(app)
+    cache.init_app(app)
+
+    login_mgr.login_view             = 'auth.login'
+    login_mgr.login_message          = 'Please log in to access this page.'
+    login_mgr.login_message_category = 'warning'
+
+    _configure_logging(app)
+
+    @app.context_processor
+    def _inject_now():
+        return {'now': datetime.utcnow()}
+
+    with app.app_context():
+        # ── Patch DB schema FIRST — before any model import touches the DB ──
+        _patch_missing_columns(app)
+
+        from app.models import user, role, task, subscription, settings  # noqa
+        from app.models import referral  # noqa — registers referral tables
+
+        from app.api import api_bp
+        from app.views.auth import auth_bp
+        from app.views import (
+            dash_bp, tasks_bp, planner_bp,
+            docs_bp, admin_bp, users_bp, ai_bp
+        )
+        from app.views.subscription import sub_bp
+        from app.views.landing import landing_bp
+        from app.views.referral import referral_bp
+        from app.views.help import help_bp
+
+        app.register_blueprint(landing_bp,  url_prefix='/')
+        app.register_blueprint(auth_bp,     url_prefix='/auth')
+        app.register_blueprint(dash_bp,     url_prefix='/dashboard')
+        app.register_blueprint(tasks_bp,    url_prefix='/tasks')
+        app.register_blueprint(planner_bp,  url_prefix='/planner')
+        app.register_blueprint(docs_bp,     url_prefix='/docs')
+        app.register_blueprint(admin_bp,    url_prefix='/admin')
+        app.register_blueprint(users_bp,    url_prefix='/users')
+        app.register_blueprint(ai_bp,       url_prefix='/ai')
+        app.register_blueprint(sub_bp,      url_prefix='/subscription')
+        app.register_blueprint(api_bp,      url_prefix='/api/v1')
+        app.register_blueprint(referral_bp, url_prefix='/referral')
+        app.register_blueprint(help_bp,     url_prefix='/help')
+
+        app.logger.info('Blueprints registered successfully.')
+
+        from flask import render_template as rt
+
+        @app.errorhandler(403)
+        def forbidden(e):
+            app.logger.warning('403 Forbidden: %s', e)
+            return rt('errors/403.html'), 403
+
+        @app.errorhandler(404)
+        def not_found(e):
+            app.logger.info('404 Not Found: %s', e)
+            return rt('errors/404.html'), 404
+
+        @app.errorhandler(500)
+        def server_error(e):
+            db.session.rollback()
+            app.logger.exception('500 Internal Server Error: %s', e)
+            return rt('errors/500.html'), 500
+
+        @app.before_request
+        def _reset_session():
+            try:
+                db.session.rollback()
+            except Exception as exc:
+                app.logger.warning('Pre-request session rollback failed: %s', exc)
+
+        @app.teardown_appcontext
+        def _shutdown_session(exception=None):
+            if exception:
+                app.logger.warning(
+                    'Request ended with exception — rolling back session: %s', exception
+                )
+                try:
+                    db.session.rollback()
+                except Exception as exc:
+                    app.logger.error('Teardown rollback failed: %s', exc)
+            db.session.remove()
+
+        @app.before_request
+        def _enforce_single_admin_session():
+            from flask import session, flash, redirect, url_for, request as req
+            from flask_login import current_user, logout_user
+
+            if req.endpoint and (
+                req.endpoint == 'static' or
+                req.endpoint.startswith('auth.')
+            ):
+                return
+
+            if current_user.is_authenticated and current_user.is_admin():
+                stored = current_user.current_session_token
+                if stored and session.get('admin_session_token') != stored:
+                    app.logger.warning(
+                        'Admin session conflict for user %s — forcing logout.',
+                        current_user.email,
+                    )
+                    logout_user()
+                    session.clear()
+                    flash('Signed out — this admin account logged in from another device.', 'warning')
+                    return redirect(url_for('auth.login'))
+
+        _run_migrations(app)
+        _seed(app)
+
+        app.logger.info('WorkPro app ready (env=%s).', env)
+
+    from app.services.notification_service import register_notify_commands
+    register_notify_commands(app)
+    return app
+
+
+# ── Schema helpers ────────────────────────────────────────────────────────────
+
+def _patch_missing_columns(app):
+    """
+    Add missing columns via psycopg2 with autocommit=True.
+    Runs before Flask-Migrate so columns exist before any SQLAlchemy query.
+    Safe on every boot — IF NOT EXISTS is a no-op.
+    """
+    patches = [
+        # Original columns
+        ('users', 'reset_token_nonce',  'VARCHAR(16)'),
+        ('users', 'verify_token_nonce', 'VARCHAR(16)'),
+        # Referral / commission feature
+        ('users', 'phone',              'VARCHAR(20)'),
+        # Referral tables (created via CREATE TABLE IF NOT EXISTS below)
+    ]
+
+    table_creates = [
+        """
+        CREATE TABLE IF NOT EXISTS referral_codes (
+            id         SERIAL PRIMARY KEY,
+            user_id    INTEGER NOT NULL UNIQUE REFERENCES users(id),
+            code       VARCHAR(12) NOT NULL UNIQUE,
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS ix_referral_codes_code ON referral_codes(code)
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS referral_signups (
+            id               SERIAL PRIMARY KEY,
+            referral_code_id INTEGER NOT NULL REFERENCES referral_codes(id),
+            referred_user_id INTEGER NOT NULL REFERENCES users(id),
+            converted        BOOLEAN DEFAULT FALSE,
+            created_at       TIMESTAMP DEFAULT NOW(),
+            converted_at     TIMESTAMP
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS commissions (
+            id               SERIAL PRIMARY KEY,
+            referral_code_id INTEGER NOT NULL REFERENCES referral_codes(id),
+            referrer_id      INTEGER NOT NULL REFERENCES users(id),
+            referred_user_id INTEGER NOT NULL REFERENCES users(id),
+            payment_id       INTEGER NOT NULL REFERENCES payments(id),
+            amount           FLOAT NOT NULL,
+            rate             FLOAT NOT NULL,
+            status           VARCHAR(20) DEFAULT 'pending',
+            mpesa_receipt    VARCHAR(100),
+            phone_number     VARCHAR(20),
+            created_at       TIMESTAMP DEFAULT NOW(),
+            paid_at          TIMESTAMP,
+            notes            VARCHAR(255)
+        )
+        """,
+        """
+        INSERT INTO system_settings (key, value)
+        VALUES ('commission_rate', '20')
+        ON CONFLICT (key) DO NOTHING
+        """,
+        """
+        INSERT INTO system_settings (key, value)
+        VALUES ('whatsapp_support', '')
+        ON CONFLICT (key) DO NOTHING
+        """,
+    ]
+
+    db_url = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    if not db_url or 'postgresql' not in db_url:
+        app.logger.info('Schema patch — skipped (non-Postgres database).')
+        return
+
+    app.logger.info('Schema patch — connecting to database...')
+    try:
+        import psycopg2
+        conn = psycopg2.connect(db_url)
+        conn.autocommit = True
+        cur = conn.cursor()
+
+        # Column patches
+        for table, column, col_type in patches:
+            sql = f'ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {col_type}'
+            try:
+                cur.execute(sql)
+                app.logger.info('Schema patch — %-35s ✓', f'{table}.{column}')
+            except Exception as e:
+                app.logger.error('Schema patch — %-35s FAILED: %s', f'{table}.{column}', e)
+
+        # Table / index / seed patches
+        for sql in table_creates:
+            try:
+                cur.execute(sql)
+            except Exception as e:
+                app.logger.error('Schema patch — DDL failed: %s | SQL: %s', e, sql[:60])
+
+        cur.close()
+        conn.close()
+        app.logger.info('Schema patch — complete.')
+    except Exception as e:
+        app.logger.error('Schema patch — could not connect to database: %s', e)
+
+
+def _run_migrations(app):
+    migrations_dir = os.path.join(os.path.dirname(app.root_path), 'migrations')
+
+    if os.path.isdir(migrations_dir):
+        app.logger.info('Migrations — running flask db upgrade...')
+        try:
+            upgrade(directory=migrations_dir)
+            app.logger.info('Migrations — all migrations applied successfully.')
+        except Exception as e:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            app.logger.warning('Migrations — upgrade failed (schema was pre-patched): %s', e)
+    else:
+        app.logger.warning('Migrations — no migrations folder found, using db.create_all().')
+        try:
+            db.create_all()
+            app.logger.info('Migrations — db.create_all() completed.')
+        except Exception as e:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            app.logger.error('Migrations — db.create_all() failed: %s', e)
+
+
+def _seed(app):
+    app.logger.info('Seeder — running seed_defaults...')
+    try:
+        from app.utils.seeder import seed_defaults
+        seed_defaults()
+        app.logger.info('Seeder — defaults seeded successfully.')
+    except Exception as e:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        app.logger.error('Seeder — seed_defaults failed: %s', e)

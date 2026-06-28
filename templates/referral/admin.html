@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Admin — Commissions{% endblock %}
+{% block content %}
+<div class="container-fluid py-4">
+  <h4 class="fw-bold mb-4">💰 Commission Management</h4>
+
+  <div class="card border-0 shadow-sm rounded-3" style="background:var(--wp-card)">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-sm mb-0" style="font-size:13px">
+          <thead style="background:var(--wp-surface)">
+            <tr style="color:var(--wp-muted)">
+              <th class="px-3 py-2">#</th>
+              <th class="py-2">Date</th>
+              <th class="py-2">Referrer</th>
+              <th class="py-2">Referred</th>
+              <th class="py-2">Amount</th>
+              <th class="py-2">Status</th>
+              <th class="py-2">Receipt / Notes</th>
+              <th class="py-2">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in commissions %}
+            <tr>
+              <td class="px-3">{{ c.id }}</td>
+              <td>{{ c.created_at.strftime('%Y-%m-%d') }}</td>
+              <td>
+                {{ c.referrer.full_name }}<br>
+                <small class="text-wp-muted">{{ c.phone_number or 'No phone' }}</small>
+              </td>
+              <td>{{ c.referred_user.full_name }}</td>
+              <td class="fw-semibold">KES {{ c.amount | int }}</td>
+              <td>
+                {% if c.status == 'paid' %}
+                  <span class="badge" style="background:#dcfce7;color:#166534">Paid</span>
+                {% elif c.status == 'failed' %}
+                  <span class="badge" style="background:#fee2e2;color:#991b1b">Failed</span>
+                {% else %}
+                  <span class="badge" style="background:#fef3c7;color:#92400e">Pending</span>
+                {% endif %}
+              </td>
+              <td style="max-width:200px;font-size:11px">
+                {{ c.mpesa_receipt or '' }}<br>
+                <span class="text-wp-muted">{{ c.notes or '' }}</span>
+              </td>
+              <td>
+                {% if c.status != 'paid' %}
+                <form method="POST" action="{{ url_for('referral.admin_pay', commission_id=c.id) }}" class="d-flex gap-1">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="text" name="receipt" placeholder="Receipt #" class="form-control form-control-sm"
+                    style="width:100px;background:var(--wp-surface);border-color:var(--wp-border);color:var(--wp-text);font-size:11px">
+                  <button type="submit" class="btn btn-sm" style="background:var(--wp-accent);color:#fff;font-size:11px;border:none">
+                    Mark Paid
+                  </button>
+                </form>
+                {% else %}
+                <span class="text-wp-muted" style="font-size:11px">{{ c.paid_at.strftime('%Y-%m-%d') if c.paid_at else '' }}</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="8" class="text-center text-wp-muted py-4">No commissions yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}Teams{% endblock %}
+{% block page_title %}Teams{% endblock %}
+{% block page_sub %}Collaborate with your colleagues{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+
+  <!-- Hero / CTA row -->
+  <div class="row g-3 mb-4">
+    <!-- Create team -->
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm rounded-4 h-100" style="background:linear-gradient(135deg,var(--wp-accent),#06b6d4);color:#fff">
+        <div class="card-body p-4">
+          <div class="mb-3"><i class="bi bi-people-fill" style="font-size:2rem"></i></div>
+          <h5 class="fw-bold mb-1">Create a Team</h5>
+          <p style="font-size:13px;opacity:.85" class="mb-3">
+            Start a workspace, invite colleagues and track everyone's productivity on a shared leaderboard.
+          </p>
+          <button class="btn btn-light fw-semibold" data-bs-toggle="modal" data-bs-target="#createModal">
+            <i class="bi bi-plus-lg me-1"></i> New Team
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Join team -->
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm rounded-4 h-100" style="background:var(--wp-card)">
+        <div class="card-body p-4">
+          <div class="mb-3"><i class="bi bi-person-plus-fill" style="font-size:2rem;color:var(--wp-accent)"></i></div>
+          <h5 class="fw-bold mb-1">Join a Team</h5>
+          <p class="text-wp-muted mb-3" style="font-size:13px">
+            Have an invite code? Enter it below to join your colleague's team instantly.
+          </p>
+          <form method="POST" action="{{ url_for('teams.join') }}" class="d-flex gap-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="text" name="invite_code" class="form-control form-control-sm"
+              placeholder="8-char invite code" maxlength="8" style="text-transform:uppercase;letter-spacing:.1em;font-family:monospace;background:var(--wp-surface);border-color:var(--wp-border);color:var(--wp-text)">
+            <button type="submit" class="btn btn-sm fw-semibold" style="background:var(--wp-accent);color:#fff;border:none;white-space:nowrap">
+              <i class="bi bi-arrow-right-circle me-1"></i>Join
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- My Teams -->
+  {% if teams %}
+  <h6 class="fw-bold mb-3" style="color:var(--wp-muted);text-transform:uppercase;font-size:11px;letter-spacing:.06em">My Teams ({{ teams|length }})</h6>
+  <div class="row g-3">
+    {% for team in teams %}
+    <div class="col-md-6 col-lg-4">
+      <div class="card border-0 shadow-sm rounded-4 h-100" style="background:var(--wp-card)">
+        <div class="card-body p-4">
+          <!-- Header -->
+          <div class="d-flex align-items-start justify-content-between mb-3">
+            <div class="d-flex align-items-center gap-3">
+              <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--wp-accent),#06b6d4);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:17px;flex-shrink:0">
+                {{ team.name[0].upper() }}
+              </div>
+              <div>
+                <div class="fw-bold">{{ team.name }}</div>
+                <div class="text-wp-muted" style="font-size:12px">{{ team.member_count }} member{{ 's' if team.member_count != 1 }}</div>
+              </div>
+            </div>
+            {% set m = team.get_member(current_user.id) %}
+            {% if m %}
+            <span class="badge rounded-pill" style="font-size:10px;background:{% if m.role=='owner' %}rgba(79,70,229,.15);color:var(--wp-accent){% elif m.role=='admin' %}rgba(6,182,212,.15);color:#0891b2{% else %}var(--wp-bg);color:var(--wp-muted){% endif %}">
+              {{ m.role|title }}
+            </span>
+            {% endif %}
+          </div>
+
+          {% if team.description %}
+          <p class="text-wp-muted mb-3" style="font-size:12px;line-height:1.5">{{ team.description[:100] }}{% if team.description|length > 100 %}…{% endif %}</p>
+          {% endif %}
+
+          <a href="{{ url_for('teams.detail', team_id=team.id) }}"
+             class="btn btn-sm w-100 fw-semibold"
+             style="background:var(--wp-accent-bg);color:var(--wp-accent);border:1px solid rgba(79,70,229,.2)">
+            <i class="bi bi-bar-chart-line me-1"></i> View Leaderboard
+          </a>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% else %}
+  <!-- Empty state -->
+  <div class="text-center py-5 my-3">
+    <div style="width:72px;height:72px;border-radius:20px;background:var(--wp-accent-bg);display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
+      <i class="bi bi-people" style="font-size:2rem;color:var(--wp-accent)"></i>
+    </div>
+    <h5 class="fw-bold mb-1">No teams yet</h5>
+    <p class="text-wp-muted" style="font-size:14px">Create a team or join one with an invite code above.</p>
+  </div>
+  {% endif %}
+
+</div>
+
+<!-- Create Team Modal -->
+<div class="modal fade" id="createModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 rounded-4" style="background:var(--wp-card)">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold">Create a Team</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="{{ url_for('teams.create') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-body pt-3">
+          <div class="mb-3">
+            <label class="form-label fw-semibold" style="font-size:13px">Team Name *</label>
+            <input type="text" name="name" class="form-control" required maxlength="120"
+              placeholder="e.g. Sales Team, Dev Crew, Marketing…"
+              style="background:var(--wp-surface);border-color:var(--wp-border);color:var(--wp-text)">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold" style="font-size:13px">Description <span class="text-wp-muted fw-normal">(optional)</span></label>
+            <textarea name="description" class="form-control" rows="2" maxlength="500"
+              placeholder="What does this team work on?"
+              style="background:var(--wp-surface);border-color:var(--wp-border);color:var(--wp-text);resize:none"></textarea>
+          </div>
+          <p class="text-wp-muted mb-0" style="font-size:12px">
+            <i class="bi bi-info-circle me-1"></i>
+            An invite code will be generated automatically. Share it with colleagues to let them join.
+          </p>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-sm fw-semibold" style="background:var(--wp-accent);color:#fff;border:none">
+            <i class="bi bi-plus-lg me-1"></i>Create Team
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

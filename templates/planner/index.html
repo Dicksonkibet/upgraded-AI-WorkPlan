@@ -1,0 +1,550 @@
+{% extends "base.html" %} {% block title %}Daily Planner{% endblock %} {% block
+page_title %}Daily Planner{% endblock %} {% block page_sub %}Plan your day,
+block by block{% endblock %} {% block topbar_actions %}
+<button
+  class="btn-p-primary"
+  data-bs-toggle="modal"
+  data-bs-target="#planModal"
+>
+  <i class="bi bi-plus-lg"></i> Add Plan
+</button>
+{% endblock %} {% block content %}
+<style>
+  :root {
+    --p-accent: #7c6aff;
+    --p-accent2: #27c98a;
+    --p-warn: #fbbf24;
+    --p-danger: #f87171;
+    --p-surface: var(--wp-surface, #1a1d2e);
+    --p-card: var(--wp-card, #20243a);
+    --p-border: var(--wp-border, rgba(255, 255, 255, 0.08));
+    --p-text: var(--wp-text, #e2e8f0);
+    --p-muted: var(--wp-muted, #64748b);
+    --p-radius: 12px;
+    --p-radius-sm: 8px;
+  }
+
+  .btn-p-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--p-accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--p-radius-sm);
+    padding: 9px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+      background 0.15s,
+      transform 0.1s,
+      box-shadow 0.15s;
+  }
+  .btn-p-primary:hover {
+    background: #6b59ee;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(124, 106, 255, 0.35);
+  }
+
+  .btn-p-ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: transparent;
+    color: var(--p-muted);
+    border: 1px solid var(--p-border);
+    border-radius: var(--p-radius-sm);
+    padding: 7px 13px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: none;
+    transition:
+      border-color 0.15s,
+      color 0.15s,
+      background 0.15s;
+  }
+  .btn-p-ghost:hover {
+    border-color: var(--p-accent);
+    color: var(--p-text);
+    background: rgba(124, 106, 255, 0.06);
+  }
+
+  .btn-p-danger {
+    display: inline-flex;
+    align-items: center;
+    background: transparent;
+    color: var(--p-danger);
+    border: none;
+    border-radius: var(--p-radius-sm);
+    padding: 6px 8px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn-p-danger:hover {
+    background: rgba(248, 113, 113, 0.1);
+  }
+
+  .btn-p-icon {
+    display: inline-flex;
+    align-items: center;
+    background: transparent;
+    color: var(--p-muted);
+    border: 1px solid var(--p-border);
+    border-radius: var(--p-radius-sm);
+    padding: 6px 8px;
+    font-size: 13px;
+    cursor: pointer;
+    transition:
+      border-color 0.15s,
+      color 0.15s,
+      background 0.15s;
+  }
+  .btn-p-icon:hover {
+    border-color: var(--p-accent);
+    color: var(--p-text);
+    background: rgba(124, 106, 255, 0.06);
+  }
+
+  /* ── Date nav ── */
+  .date-nav {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .date-input-wrap {
+    display: flex;
+    align-items: center;
+    background: var(--p-card);
+    border: 1px solid var(--p-border);
+    border-radius: var(--p-radius-sm);
+    overflow: hidden;
+    transition: border-color 0.15s;
+  }
+  .date-input-wrap:focus-within {
+    border-color: var(--p-accent);
+  }
+  .date-input-icon {
+    padding: 0 11px;
+    color: var(--p-muted);
+    font-size: 13px;
+    border-right: 1px solid var(--p-border);
+    height: 36px;
+    display: flex;
+    align-items: center;
+  }
+  .date-input-wrap input[type="date"] {
+    background: transparent;
+    border: none;
+    outline: none;
+    padding: 7px 11px;
+    font-size: 12.5px;
+    color: var(--p-text);
+    height: 36px;
+  }
+  .date-label {
+    font-size: 12px;
+    color: var(--p-muted);
+    padding: 0 4px;
+  }
+
+  /* ── Plan items ── */
+  .plan-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .plan-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    background: var(--p-card);
+    border: 1px solid var(--p-border);
+    border-radius: var(--p-radius);
+    padding: 14px 16px;
+    transition:
+      border-color 0.2s,
+      transform 0.15s,
+      opacity 0.2s;
+  }
+  .plan-item:hover {
+    border-color: rgba(124, 106, 255, 0.35);
+    transform: translateX(2px);
+  }
+  .plan-item.done {
+    opacity: 0.55;
+  }
+  .plan-item.done:hover {
+    opacity: 0.75;
+  }
+
+  .plan-check {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2px solid var(--p-border);
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: transparent;
+    cursor: pointer;
+    flex-shrink: 0;
+    margin-top: 1px;
+    transition:
+      border-color 0.15s,
+      background 0.15s,
+      color 0.15s;
+  }
+  .plan-check:hover {
+    border-color: var(--p-accent2);
+  }
+  .plan-check.done {
+    background: var(--p-accent2);
+    border-color: var(--p-accent2);
+    color: #fff;
+  }
+
+  .plan-title {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--p-text);
+    line-height: 1.35;
+  }
+  .plan-item.done .plan-title {
+    text-decoration: line-through;
+    color: var(--p-muted);
+  }
+
+  .plan-time-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--p-accent);
+    background: rgba(124, 106, 255, 0.1);
+    border-radius: 20px;
+    padding: 2px 9px;
+  }
+
+  .plan-desc {
+    font-size: 12px;
+    color: var(--p-muted);
+    margin-top: 4px;
+    line-height: 1.5;
+  }
+
+  .plan-actions {
+    display: flex;
+    gap: 4px;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+
+  /* ── Empty state ── */
+  .p-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 64px 24px;
+    color: var(--p-muted);
+    gap: 10px;
+    text-align: center;
+    background: var(--p-card);
+    border: 1px solid var(--p-border);
+    border-radius: var(--p-radius);
+  }
+  .p-empty-icon {
+    font-size: 2.4rem;
+    opacity: 0.3;
+  }
+  .p-empty-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--p-text);
+  }
+  .p-empty-sub {
+    font-size: 12.5px;
+  }
+
+  /* ── Modal ── */
+  .p-modal-content {
+    background: var(--p-card) !important;
+    border: 1px solid var(--p-border) !important;
+    border-radius: var(--p-radius) !important;
+  }
+  .p-modal-header {
+    border-bottom: 1px solid var(--p-border) !important;
+    padding: 18px 22px !important;
+  }
+  .p-modal-title {
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    color: var(--p-text) !important;
+  }
+  .p-modal-body {
+    padding: 22px !important;
+  }
+  .p-modal-footer {
+    border-top: 1px solid var(--p-border) !important;
+    padding: 14px 22px !important;
+    gap: 8px !important;
+  }
+
+  .p-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--p-muted);
+    letter-spacing: 0.3px;
+    margin-bottom: 5px;
+  }
+  .p-input,
+  .p-textarea {
+    width: 100%;
+    background: var(--p-surface);
+    border: 1px solid var(--p-border);
+    border-radius: var(--p-radius-sm);
+    padding: 9px 12px;
+    font-size: 13px;
+    color: var(--p-text);
+    outline: none;
+    transition:
+      border-color 0.15s,
+      box-shadow 0.15s;
+  }
+  .p-input:focus,
+  .p-textarea:focus {
+    border-color: var(--p-accent);
+    box-shadow: 0 0 0 3px rgba(124, 106, 255, 0.12);
+  }
+  .p-textarea {
+    resize: vertical;
+  }
+</style>
+
+<!-- ── Date navigation ── -->
+<div class="date-nav">
+  <div class="date-input-wrap">
+    <div class="date-input-icon"><i class="bi bi-calendar3"></i></div>
+    <input
+      type="date"
+      id="planDate"
+      value="{{ plan_date }}"
+      onchange="location.href = '?date=' + this.value"
+    />
+  </div>
+  <a href="?date={{ today }}" class="btn-p-ghost">Today</a>
+  <span class="date-label">{{ plan_date }}</span>
+</div>
+
+<!-- ── Plan list ── -->
+{% if plans %}
+<div class="plan-list" id="plansList">
+  {% for p in plans %}
+  <div
+    class="plan-item {% if p.completed %}done{% endif %}"
+    id="plan-{{ p.id }}"
+  >
+    <!-- Check button -->
+    <button
+      class="plan-check {% if p.completed %}done{% endif %}"
+      onclick="togglePlan({{ p.id }}, {{ 'false' if p.completed else 'true' }})"
+      title="{{ 'Mark incomplete' if p.completed else 'Mark complete' }}"
+    >
+      <i class="bi bi-check-lg"></i>
+    </button>
+
+    <!-- Content -->
+    <div class="flex-grow-1 min-width-0">
+      <div class="plan-title">{{ p.title }}</div>
+      {% if p.time_block %}
+      <div class="plan-time-chip">
+        <i class="bi bi-clock"></i> {{ p.time_block }}
+      </div>
+      {% endif %} {% if p.description %}
+      <div class="plan-desc">{{ p.description }}</div>
+      {% endif %}
+    </div>
+
+    <!-- Actions — data-* attributes carry the plan payload safely -->
+    <div class="plan-actions">
+      <button
+        class="btn-p-icon edit-btn"
+        data-id="{{ p.id }}"
+        data-title="{{ p.title | e }}"
+        data-date="{{ p.plan_date | string }}"
+        data-time="{{ p.time_block | default('', true) | e }}"
+        data-desc="{{ p.description | default('', true) | e }}"
+        title="Edit"
+      >
+        <i class="bi bi-pencil"></i>
+      </button>
+      <form
+        method="POST"
+        action="{{ url_for('planner.delete', plan_id=p.id) }}"
+        style="display: contents"
+      >
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <button
+          type="submit"
+          class="btn-p-danger"
+          title="Delete"
+          onclick="return confirm('Delete this plan?');"
+        >
+          <i class="bi bi-trash"></i>
+        </button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% else %}
+<div class="p-empty">
+  <div class="p-empty-icon"><i class="bi bi-calendar3"></i></div>
+  <div class="p-empty-title">No plans for this day</div>
+  <div class="p-empty-sub">
+    Add your first activity or time block to get started.
+  </div>
+  <button
+    class="btn-p-ghost mt-2"
+    data-bs-toggle="modal"
+    data-bs-target="#planModal"
+  >
+    <i class="bi bi-plus-lg"></i> Add Plan
+  </button>
+</div>
+{% endif %}
+
+<!-- ── Plan Modal ── -->
+<div class="modal fade" id="planModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content p-modal-content">
+      <div class="modal-header p-modal-header">
+        <h5 class="modal-title p-modal-title" id="planModalLabel">Add Plan</h5>
+        <button
+          type="button"
+          class="btn-close btn-close-white"
+          data-bs-dismiss="modal"
+        ></button>
+      </div>
+      <form
+        method="POST"
+        id="planForm"
+        action="{{ url_for('planner.create') }}"
+      >
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <div class="modal-body p-modal-body">
+          <div class="mb-3">
+            <label class="p-label">Title *</label>
+            <input
+              type="text"
+              name="title"
+              id="planTitle"
+              class="p-input"
+              required
+              placeholder="What are you planning?"
+            />
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="p-label">Date</label>
+              <input
+                type="date"
+                name="plan_date"
+                id="planModalDate"
+                class="p-input"
+                value="{{ plan_date }}"
+              />
+            </div>
+            <div class="col-6">
+              <label class="p-label">Time Block</label>
+              <input
+                type="text"
+                name="time_block"
+                id="planTime"
+                class="p-input"
+                placeholder="09:00 – 10:30"
+              />
+            </div>
+          </div>
+          <div class="mb-0">
+            <label class="p-label">Description</label>
+            <textarea
+              name="description"
+              id="planDesc"
+              class="p-textarea"
+              rows="3"
+              placeholder="Optional notes…"
+            ></textarea>
+          </div>
+        </div>
+        <div class="modal-footer p-modal-footer">
+          <button type="button" class="btn-p-ghost" data-bs-dismiss="modal">
+            Cancel
+          </button>
+          <button type="submit" class="btn-p-primary">
+            <i class="bi bi-check2"></i> Save Plan
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %} {% block extra_js %}
+<script>
+  const CREATE_URL = "{{ url_for('planner.create') }}";
+  const planDate = "{{ plan_date }}";
+
+  /* ── Toggle complete ── */
+  function togglePlan(id, completed) {
+    fetch("/planner/" + id + "/toggle", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrf() },
+      body: JSON.stringify({ completed }),
+    }).then(() => location.reload());
+  }
+
+  /* ── Edit — read from data-* attributes, no inline JSON ── */
+  document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll(".edit-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        const id = this.dataset.id;
+        const title = this.dataset.title;
+        const date = this.dataset.date || planDate;
+        const time = this.dataset.time || "";
+        const desc = this.dataset.desc || "";
+
+        document.getElementById("planModalLabel").textContent = "Edit Plan";
+        document.getElementById("planForm").action = "/planner/" + id + "/edit";
+        document.getElementById("planTitle").value = title;
+        document.getElementById("planModalDate").value = date;
+        document.getElementById("planTime").value = time;
+        document.getElementById("planDesc").value = desc;
+
+        new bootstrap.Modal(document.getElementById("planModal")).show();
+      });
+    });
+
+    /* Reset modal to "Add" state when closed */
+    document
+      .getElementById("planModal")
+      .addEventListener("hidden.bs.modal", function () {
+        document.getElementById("planModalLabel").textContent = "Add Plan";
+        document.getElementById("planForm").action = CREATE_URL;
+        document.getElementById("planForm").reset();
+        document.getElementById("planModalDate").value = planDate;
+      });
+  });
+</script>
+{% endblock %}

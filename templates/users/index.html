@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Users{% endblock %}
+{% block page_title %}User Management{% endblock %}
+{% block page_sub %}Manage team members, roles and access{% endblock %}
+{% block content %}
+
+<!-- Filters -->
+<div class="d-flex flex-wrap gap-2 mb-4 align-items-center">
+  <div class="input-group" style="max-width:240px">
+    <span class="input-group-text" style="background:var(--wp-surface);border-color:var(--wp-border);color:var(--wp-muted)"><i class="bi bi-search"></i></span>
+    <input type="text" class="form-control" placeholder="Search users…" value="{{ filters.q or '' }}"
+           onchange="location.href='?q='+this.value"/>
+  </div>
+  {% for r in roles %}
+  <a href="?role_id={{ r.id }}" class="btn btn-sm {% if filters.role_id == r.id|string %}btn-wp-primary{% else %}btn-wp-ghost{% endif %}">{{ r.name|title }}</a>
+  {% endfor %}
+  <a href="?" class="btn btn-sm btn-wp-ghost">All</a>
+</div>
+
+<div class="wp-card">
+  {% if users.items %}
+  <div class="table-responsive">
+    <table class="wp-table">
+      <thead><tr><th>User</th><th>Email</th><th>Role</th><th>Status</th><th>Last Login</th><th>Joined</th><th>Actions</th></tr></thead>
+      <tbody>
+      {% for u in users.items %}
+      <tr>
+        <td>
+          <div class="d-flex align-items-center gap-2">
+            <div class="wp-avatar" style="background:{{ u.avatar_color }}">{{ u.initials }}</div>
+            <div>
+              <div style="font-weight:500">{{ u.full_name }}</div>
+              {% if u.id == current_user.id %}<span style="font-size:10px;color:var(--wp-muted)">You</span>{% endif %}
+            </div>
+          </div>
+        </td>
+        <td style="font-size:12px;color:var(--wp-muted)">{{ u.email }}</td>
+        <td>
+          <form method="POST" action="{{ url_for('users.change_role', user_id=u.id) }}" class="d-inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <select name="role_id" class="form-select form-select-sm" style="width:120px" onchange="this.form.submit()" {% if u.id == current_user.id %}disabled{% endif %}>
+              {% for r in roles %}
+              {% if r.name != 'admin' or u.role_id == r.id or not admin_exists %}
+              <option value="{{ r.id }}" {% if u.role_id == r.id %}selected{% endif %}>{{ r.name|title }}</option>
+              {% endif %}
+              {% endfor %}
+            </select>
+          </form>
+        </td>
+        <td>
+          {% if u.is_active %}
+          <span class="wp-badge" style="background:rgba(39,201,138,.12);color:#34d399"><i class="bi bi-circle-fill me-1" style="font-size:7px"></i>Active</span>
+          {% else %}
+          <span class="wp-badge" style="background:rgba(255,90,90,.12);color:#f87171"><i class="bi bi-circle-fill me-1" style="font-size:7px"></i>Inactive</span>
+          {% endif %}
+        </td>
+        <td class="mono" style="font-size:11px;color:var(--wp-muted)">{{ u.last_login.strftime('%d %b %Y') if u.last_login else 'Never' }}</td>
+        <td class="mono" style="font-size:11px;color:var(--wp-muted)">{{ u.created_at.strftime('%d %b %Y') }}</td>
+        <td>
+          <div class="d-flex gap-1">
+            {% if u.id != current_user.id %}
+            <form method="POST" action="{{ url_for('users.toggle_active', user_id=u.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+              <button class="btn btn-sm btn-wp-ghost py-1 px-2" title="{{ 'Deactivate' if u.is_active else 'Activate' }}">
+                <i class="bi bi-{{ 'person-slash' if u.is_active else 'person-check' }}"></i>
+              </button>
+            </form>
+            <form method="POST" action="{{ url_for('users.delete', user_id=u.id) }}" onsubmit="return confirm('Delete {{ u.full_name }}?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+              <button class="btn btn-sm btn-danger py-1 px-2"><i class="bi bi-trash"></i></button>
+            </form>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <!-- Pagination -->
+  {% if users.pages > 1 %}
+  <div class="d-flex justify-content-center mt-4">
+    <nav>
+      <ul class="pagination pagination-sm">
+        {% for p in users.iter_pages() %}
+        {% if p %}
+        <li class="page-item {% if p == users.page %}active{% endif %}">
+          <a class="page-link" href="?page={{ p }}" style="background:var(--wp-card);border-color:var(--wp-border);color:var(--wp-text)">{{ p }}</a>
+        </li>
+        {% else %}
+        <li class="page-item disabled"><span class="page-link" style="background:var(--wp-card);border-color:var(--wp-border)">…</span></li>
+        {% endif %}
+        {% endfor %}
+      </ul>
+    </nav>
+  </div>
+  {% endif %}
+  {% else %}
+  <div class="wp-empty"><div class="wp-empty-icon"><i class="bi bi-people"></i></div><div class="wp-empty-title">No users found</div></div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,543 @@
+{% extends "base.html" %}
+{% block title %}Tasks{% endblock %}
+{% block page_title %}My Tasks{% endblock %}
+{% block page_sub %}Manage and track all your tasks{% endblock %}
+
+{% block topbar_actions %}
+{% if current_user.has_permission('tasks.create') %}
+<button class="btn-t-primary btn-t-sm" data-bs-toggle="modal" data-bs-target="#newTaskModal"
+  {% if not current_user.is_pro and not current_user.can_create_task() %}disabled title="Task limit reached"{% endif %}>
+  <i class="bi bi-plus-lg"></i><span class="d-none d-md-inline">New Task</span>
+</button>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<style>
+  /* ── Design tokens ── */
+  :root {
+    --t-accent:   #7c6aff;
+    --t-accent2:  #27c98a;
+    --t-warn:     #fbbf24;
+    --t-danger:   #f87171;
+    --t-surface:  var(--wp-surface, #1a1d2e);
+    --t-card:     var(--wp-card, #20243a);
+    --t-border:   var(--wp-border, rgba(255,255,255,.08));
+    --t-text:     var(--wp-text, #e2e8f0);
+    --t-muted:    var(--wp-muted, #64748b);
+    --t-radius:   12px;
+    --t-radius-sm:8px;
+  }
+
+  /* ── Buttons ── */
+  .btn-t-primary {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--t-accent); color: #fff;
+    border: none; border-radius: var(--t-radius-sm);
+    padding: 9px 18px; font-size: 13px; font-weight: 600;
+    cursor: pointer;
+    transition: background .15s, transform .1s, box-shadow .15s;
+    text-decoration: none;
+  }
+  .btn-t-primary:hover { background: #6b59ee; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(124,106,255,.35); }
+  .btn-t-primary:disabled { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
+  .btn-t-ghost {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: transparent; color: var(--t-muted);
+    border: 1px solid var(--t-border); border-radius: var(--t-radius-sm);
+    padding: 7px 13px; font-size: 12px; font-weight: 500;
+    cursor: pointer; text-decoration: none;
+    transition: border-color .15s, color .15s, background .15s;
+  }
+  .btn-t-ghost:hover { border-color: var(--t-accent); color: var(--t-text); background: rgba(124,106,255,.06); }
+  .btn-t-danger {
+    display: inline-flex; align-items: center;
+    background: transparent; color: var(--t-danger);
+    border: none; border-radius: var(--t-radius-sm);
+    padding: 6px 8px; font-size: 13px;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  .btn-t-danger:hover { background: rgba(248,113,113,.1); }
+  .btn-t-sm { padding: 6px 12px; font-size: 12px; }
+
+  /* ── Cards ── */
+  .t-card {
+    background: var(--t-card);
+    border: 1px solid var(--t-border);
+    border-radius: var(--t-radius);
+    padding: 20px;
+  }
+
+  /* ── Usage bar ── */
+  .usage-strip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    background: var(--t-card);
+    border: 1px solid var(--t-border);
+    border-radius: var(--t-radius);
+    padding: 14px 18px;
+    margin-bottom: 16px;
+  }
+  .usage-meta { font-size: 13px; color: var(--t-text); }
+  .usage-meta strong { font-weight: 700; }
+  .usage-meta span  { color: var(--t-muted); }
+  .usage-track {
+    width: 160px; height: 5px;
+    background: rgba(255,255,255,.07);
+    border-radius: 99px;
+    margin-top: 8px;
+    overflow: hidden;
+  }
+  .usage-fill {
+    height: 100%; border-radius: 99px;
+    transition: width .4s;
+  }
+  .usage-fill.ok     { background: var(--t-accent2); }
+  .usage-fill.warn   { background: var(--t-warn); }
+  .usage-fill.danger { background: var(--t-danger); }
+
+  /* ── Filter bar ── */
+  .filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    background: var(--t-card);
+    border: 1px solid var(--t-border);
+    border-radius: var(--t-radius);
+    padding: 12px 16px;
+    margin-bottom: 16px;
+  }
+  .filter-bar .t-input,
+  .filter-bar .t-select {
+    background: var(--t-surface);
+    border: 1px solid var(--t-border);
+    border-radius: var(--t-radius-sm);
+    padding: 7px 11px;
+    font-size: 12.5px;
+    color: var(--t-text);
+    outline: none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .filter-bar .t-input  { flex: 1; min-width: 160px; }
+  .filter-bar .t-input:focus,
+  .filter-bar .t-select:focus { border-color: var(--t-accent); box-shadow: 0 0 0 3px rgba(124,106,255,.12); }
+  .filter-bar .t-select { min-width: 130px; }
+
+  /* ── Tasks table ── */
+  .t-table { width: 100%; border-collapse: collapse; }
+  .t-table thead th {
+    font-size: 10px; font-weight: 700;
+    letter-spacing: .9px; text-transform: uppercase;
+    color: var(--t-muted);
+    padding: 0 12px 10px;
+    border-bottom: 1px solid var(--t-border);
+    white-space: nowrap;
+  }
+  .t-table thead th:first-child { padding-left: 4px; width: 36px; }
+  .t-table tbody tr {
+    border-bottom: 1px solid var(--t-border);
+    transition: background .12s;
+  }
+  .t-table tbody tr:last-child { border-bottom: none; }
+  .t-table tbody tr:hover { background: rgba(255,255,255,.025); }
+  .t-table tbody td {
+    padding: 11px 12px;
+    font-size: 13px;
+    color: var(--t-text);
+    vertical-align: middle;
+  }
+  .t-table tbody td:first-child { padding-left: 4px; }
+
+  /* custom checkbox */
+  .t-check {
+    width: 16px; height: 16px;
+    accent-color: var(--t-accent);
+    cursor: pointer;
+  }
+
+  .task-title-text {
+    font-weight: 600;
+    font-size: 13px;
+    line-height: 1.35;
+  }
+  .task-title-text.done {
+    text-decoration: line-through;
+    color: var(--t-muted);
+  }
+  .task-desc {
+    font-size: 11.5px;
+    color: var(--t-muted);
+    margin-top: 2px;
+  }
+
+  /* ── Badges ── */
+  .t-badge {
+    display: inline-flex; align-items: center;
+    padding: 3px 9px; border-radius: 20px;
+    font-size: 11px; font-weight: 600; white-space: nowrap;
+  }
+  .t-badge-high       { background: rgba(248,113,113,.15); color: #f87171; }
+  .t-badge-medium     { background: rgba(251,191,36,.15);  color: #fbbf24; }
+  .t-badge-low        { background: rgba(79,156,249,.12);  color: #60a5fa; }
+  .t-badge-todo       { background: rgba(79,156,249,.12);  color: #60a5fa; }
+  .t-badge-in_progress{ background: rgba(245,166,35,.15);  color: #fbbf24; }
+  .t-badge-done       { background: rgba(39,201,138,.15);  color: #27c98a; }
+
+  /* ── Inline status select ── */
+  .t-status-select {
+    background: var(--t-surface);
+    border: 1px solid var(--t-border);
+    border-radius: var(--t-radius-sm);
+    padding: 5px 8px;
+    font-size: 12px;
+    color: var(--t-text);
+    outline: none;
+    cursor: pointer;
+    width: 130px;
+    transition: border-color .15s;
+  }
+  .t-status-select:focus { border-color: var(--t-accent); }
+
+  /* ── Empty state ── */
+  .t-empty {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 56px 24px;
+    color: var(--t-muted); gap: 10px; text-align: center;
+  }
+  .t-empty-icon { font-size: 2.2rem; opacity: .35; }
+  .t-empty-label { font-size: 13px; }
+
+  /* ── Modal ── */
+  .t-modal-content {
+    background: var(--t-card) !important;
+    border: 1px solid var(--t-border) !important;
+    border-radius: var(--t-radius) !important;
+  }
+  .t-modal-header {
+    border-bottom: 1px solid var(--t-border) !important;
+    padding: 18px 22px !important;
+  }
+  .t-modal-title { font-size: 14px !important; font-weight: 700 !important; color: var(--t-text) !important; }
+  .t-modal-body  { padding: 22px !important; }
+  .t-modal-footer{ border-top: 1px solid var(--t-border) !important; padding: 14px 22px !important; gap: 8px !important; }
+
+  .t-label {
+    display: block;
+    font-size: 11px; font-weight: 600;
+    color: var(--t-muted); letter-spacing: .3px;
+    margin-bottom: 5px;
+  }
+  .t-form-input, .t-form-select, .t-form-textarea {
+    width: 100%;
+    background: var(--t-surface);
+    border: 1px solid var(--t-border);
+    border-radius: var(--t-radius-sm);
+    padding: 9px 12px;
+    font-size: 13px; color: var(--t-text);
+    outline: none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .t-form-input:focus, .t-form-select:focus, .t-form-textarea:focus {
+    border-color: var(--t-accent);
+    box-shadow: 0 0 0 3px rgba(124,106,255,.12);
+  }
+  .t-form-textarea { resize: vertical; }
+</style>
+
+<div class="fade-in">
+
+  <!-- ── Usage strip (free plan only) ── -->
+  {% if not current_user.is_pro %}
+  <div class="usage-strip">
+    <div>
+      <div class="usage-meta">
+        <strong>{{ usage.tasks }}</strong><span> / {{ limits.tasks }} tasks used</span>
+      </div>
+      <div class="usage-track">
+        <div class="usage-fill {{ 'danger' if (usage.tasks/limits.tasks*100) >= 90 else 'warn' if (usage.tasks/limits.tasks*100) >= 70 else 'ok' }}"
+             style="width:{{ [usage.tasks/limits.tasks*100, 100]|min }}%"></div>
+      </div>
+    </div>
+    {% if usage.tasks >= limits.tasks %}
+    <a href="{{ url_for('subscription.index') }}" class="btn-t-primary btn-t-sm">
+      <i class="bi bi-stars"></i> Upgrade for unlimited
+    </a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- ── Filter bar ── -->
+  <form class="filter-bar" method="GET">
+    <input type="text" name="q" class="t-input" placeholder="Search tasks…" value="{{ filters.get('q','') }}"/>
+    <select name="status" class="t-select">
+      <option value="">All statuses</option>
+      <option value="todo"        {{ 'selected' if filters.get('status')=='todo' }}>Todo</option>
+      <option value="in_progress" {{ 'selected' if filters.get('status')=='in_progress' }}>In Progress</option>
+      <option value="done"        {{ 'selected' if filters.get('status')=='done' }}>Done</option>
+    </select>
+    <select name="priority" class="t-select">
+      <option value="">All priorities</option>
+      <option value="high"   {{ 'selected' if filters.get('priority')=='high' }}>High</option>
+      <option value="medium" {{ 'selected' if filters.get('priority')=='medium' }}>Medium</option>
+      <option value="low"    {{ 'selected' if filters.get('priority')=='low' }}>Low</option>
+    </select>
+    <button type="submit" class="btn-t-ghost"><i class="bi bi-search"></i></button>
+    <a href="{{ url_for('tasks.index') }}" class="btn-t-ghost">Clear</a>
+  </form>
+
+  <!-- ── Task table ── -->
+  <div class="t-card">
+    {% if tasks %}
+    <div style="overflow-x:auto">
+      <table class="t-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>Title</th>
+            <th>Priority</th>
+            <th>Status</th>
+            <th>Due Date</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for task in tasks %}
+          <tr>
+            <!-- Checkbox -->
+            <td>
+              <input type="checkbox" class="t-check"
+                     onchange="updateStatus({{ task.id }}, this.checked ? 'done' : 'todo')"
+                     {{ 'checked' if task.status == 'done' }}/>
+            </td>
+
+            <!-- Title + description -->
+            <td>
+              <div class="task-title-text {{ 'done' if task.status == 'done' }}">{{ task.title }}</div>
+              {% if task.description %}
+              <div class="task-desc">{{ task.description[:80] }}{% if task.description|length > 80 %}…{% endif %}</div>
+              {% endif %}
+            </td>
+
+            <!-- Priority -->
+            <td><span class="t-badge t-badge-{{ task.priority }}">{{ task.priority|title }}</span></td>
+
+            <!-- Status -->
+            <td>
+              {% if current_user.has_permission('tasks.edit') %}
+              <select class="t-status-select" onchange="quickStatus({{ task.id }}, this.value)">
+                <option value="todo"        {{ 'selected' if task.status=='todo' }}>Todo</option>
+                <option value="in_progress" {{ 'selected' if task.status=='in_progress' }}>In Progress</option>
+                <option value="done"        {{ 'selected' if task.status=='done' }}>Done</option>
+              </select>
+              {% else %}
+              <span class="t-badge t-badge-{{ task.status }}">{{ task.status|replace('_',' ')|title }}</span>
+              {% endif %}
+            </td>
+
+            <!-- Due date -->
+            <td style="font-size:12px;color:var(--t-muted);font-variant-numeric:tabular-nums;white-space:nowrap">
+              {{ task.due_date or '—' }}
+            </td>
+
+            <!-- Actions -->
+            <td>
+              <div class="d-flex gap-1">
+                {% if current_user.has_permission('tasks.edit') %}
+                <button class="btn-t-ghost btn-t-sm" data-bs-toggle="modal" data-bs-target="#editTask{{ task.id }}">
+                  <i class="bi bi-pencil"></i>
+                </button>
+                {% endif %}
+                {% if current_user.has_permission('tasks.delete') %}
+                <form method="POST" action="{{ url_for('tasks.delete', task_id=task.id) }}"
+                      onsubmit="return confirm('Delete this task?')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                  <button type="submit" class="btn-t-danger">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% else %}
+    <div class="t-empty">
+      <div class="t-empty-icon"><i class="bi bi-check2-square"></i></div>
+      <div class="t-empty-label">No tasks found. Create your first task to get started.</div>
+      {% if current_user.has_permission('tasks.create') and current_user.can_create_task() %}
+      <button class="btn-t-primary btn-t-sm mt-1" data-bs-toggle="modal" data-bs-target="#newTaskModal">
+        <i class="bi bi-plus-lg"></i> Create Task
+      </button>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<!-- ── Edit modals (one per task) ── -->
+{% for task in tasks %}
+{% if current_user.has_permission('tasks.edit') %}
+<div class="modal fade" id="editTask{{ task.id }}" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content t-modal-content">
+      <div class="modal-header t-modal-header">
+        <h6 class="modal-title t-modal-title"><i class="bi bi-pencil me-2"></i>Edit Task</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="{{ url_for('tasks.edit', task_id=task.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <div class="modal-body t-modal-body">
+          <div class="mb-3">
+            <label class="t-label">Title</label>
+            <input type="text" name="title" class="t-form-input" value="{{ task.title }}" required/>
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-4">
+              <label class="t-label">Priority</label>
+              <select name="priority" class="t-form-select">
+                <option value="high"   {{ 'selected' if task.priority=='high' }}>High</option>
+                <option value="medium" {{ 'selected' if task.priority=='medium' }}>Medium</option>
+                <option value="low"    {{ 'selected' if task.priority=='low' }}>Low</option>
+              </select>
+            </div>
+            <div class="col-4">
+              <label class="t-label">Status</label>
+              <select name="status" class="t-form-select">
+                <option value="todo"        {{ 'selected' if task.status=='todo' }}>Todo</option>
+                <option value="in_progress" {{ 'selected' if task.status=='in_progress' }}>In Progress</option>
+                <option value="done"        {{ 'selected' if task.status=='done' }}>Done</option>
+              </select>
+            </div>
+            <div class="col-4">
+              <label class="t-label">Due Date</label>
+              <input type="date" name="due_date" class="t-form-input" value="{{ task.due_date.isoformat() if task.due_date else '' }}"/>
+            </div>
+          </div>
+          <div class="mb-0">
+            <label class="t-label">Description</label>
+            <textarea name="description" class="t-form-textarea" rows="3">{{ task.description or '' }}</textarea>
+          </div>
+        </div>
+        <div class="modal-footer t-modal-footer">
+          <button type="button" class="btn-t-ghost" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn-t-primary"><i class="bi bi-check2"></i> Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endfor %}
+
+<!-- ── New Task modal ── -->
+{% if current_user.has_permission('tasks.create') %}
+<div class="modal fade" id="newTaskModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content t-modal-content">
+      <div class="modal-header t-modal-header">
+        <h6 class="modal-title t-modal-title"><i class="bi bi-plus-circle me-2"></i>New Task</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+
+      {% if not current_user.is_pro and not current_user.can_create_task() %}
+      <div class="modal-body t-modal-body text-center py-5">
+        <i class="bi bi-exclamation-triangle" style="font-size:2rem;color:var(--t-warn)"></i>
+        <p class="mt-3 mb-4" style="font-size:13px;color:var(--t-muted)">
+          You've reached the Free plan limit of <strong style="color:var(--t-text)">{{ limits.tasks }} tasks</strong>.
+        </p>
+        <a href="{{ url_for('subscription.index') }}" class="btn-t-primary">
+          <i class="bi bi-stars"></i> Upgrade to Pro
+        </a>
+      </div>
+
+      {% else %}
+      <form method="POST" action="{{ url_for('tasks.create') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <div class="modal-body t-modal-body">
+          <div class="mb-3">
+            <label class="t-label">Title *</label>
+            <input type="text" name="title" class="t-form-input" required placeholder="What needs to be done?"/>
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-4">
+              <label class="t-label">Priority</label>
+              <select name="priority" class="t-form-select">
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="low">Low</option>
+              </select>
+            </div>
+            <div class="col-4">
+              <label class="t-label">Status</label>
+              <select name="status" class="t-form-select">
+                <option value="todo">Todo</option>
+                <option value="in_progress">In Progress</option>
+              </select>
+            </div>
+            <div class="col-4">
+              <label class="t-label">Due Date</label>
+              <input type="date" name="due_date" class="t-form-input"/>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="t-label">Category</label>
+            <input type="text" name="category" class="t-form-input" placeholder="e.g. Marketing"/>
+          </div>
+          {% if users %}
+          <div class="mb-3">
+            <label class="t-label">Assign to</label>
+            <select name="assigned_to" class="t-form-select">
+              <option value="">Unassigned</option>
+              {% for u in users %}
+              <option value="{{ u.id }}">{{ u.full_name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          {% endif %}
+          <div class="mb-0">
+            <label class="t-label">Description</label>
+            <textarea name="description" class="t-form-textarea" rows="3" placeholder="Optional details…"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer t-modal-footer">
+          <button type="button" class="btn-t-ghost" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn-t-primary"><i class="bi bi-plus-lg"></i> Create Task</button>
+        </div>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function updateStatus(id, status) {
+  await fetch(`/tasks/${id}/status`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+    body: JSON.stringify({ status })
+  });
+  showToast(status === 'done' ? 'Task completed!' : 'Task reopened');
+}
+async function quickStatus(id, status) {
+  await fetch(`/tasks/${id}/status`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+    body: JSON.stringify({ status })
+  });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}Referral & Earnings{% endblock %}
+{% block content %}
+<div class="container-fluid py-4">
+
+  <!-- Header -->
+  <div class="d-flex align-items-center gap-3 mb-4">
+    <div>
+      <h4 class="mb-0 fw-bold">🤝 Referral Program</h4>
+      <p class="text-wp-muted mb-0" style="font-size:13px">Invite friends & earn commissions on every subscription</p>
+    </div>
+  </div>
+
+  <!-- Stats row -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+      <div class="card border-0 shadow-sm rounded-3 p-3 h-100" style="background:var(--wp-card)">
+        <div class="text-wp-muted mb-1" style="font-size:12px">Total Signups</div>
+        <div class="fw-bold fs-3" style="color:var(--wp-accent)">{{ stats.total_signups }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card border-0 shadow-sm rounded-3 p-3 h-100" style="background:var(--wp-card)">
+        <div class="text-wp-muted mb-1" style="font-size:12px">Paid Conversions</div>
+        <div class="fw-bold fs-3" style="color:#22c55e">{{ stats.converted_signups }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card border-0 shadow-sm rounded-3 p-3 h-100" style="background:var(--wp-card)">
+        <div class="text-wp-muted mb-1" style="font-size:12px">Total Earned (KES)</div>
+        <div class="fw-bold fs-3" style="color:#f59e0b">{{ stats.total_earned | int }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card border-0 shadow-sm rounded-3 p-3 h-100" style="background:var(--wp-card)">
+        <div class="text-wp-muted mb-1" style="font-size:12px">Pending (KES)</div>
+        <div class="fw-bold fs-3" style="color:#6366f1">{{ stats.pending_earnings | int }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <!-- Referral link card -->
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm rounded-3 h-100" style="background:var(--wp-card)">
+        <div class="card-body p-4">
+          <h6 class="fw-bold mb-1">Your Referral Link</h6>
+          <p class="text-wp-muted mb-3" style="font-size:13px">
+            Share this link. When someone subscribes to Pro using your link, you earn a commission automatically sent to your M-Pesa.
+          </p>
+
+          <div class="input-group mb-3">
+            <input type="text" class="form-control" id="refUrl" value="{{ ref_url }}" readonly
+              style="font-size:12px;background:var(--wp-surface);border-color:var(--wp-border);color:var(--wp-text)">
+            <button class="btn btn-outline-secondary" onclick="copyLink()" id="copyBtn"
+              style="border-color:var(--wp-border);color:var(--wp-text)">
+              <i class="bi bi-clipboard"></i> Copy
+            </button>
+          </div>
+
+          <div class="d-flex gap-2 flex-wrap">
+            <a href="https://wa.me/?text={{ ('Check out WorkPro — the smart productivity platform! Use my link to get started: ' + ref_url) | urlencode }}"
+               target="_blank" class="btn btn-sm" style="background:#25d366;color:#fff;border:none">
+              <i class="bi bi-whatsapp me-1"></i> Share on WhatsApp
+            </a>
+            <a href="https://twitter.com/intent/tweet?text={{ ('I use WorkPro to manage my work smarter. Join me using my referral link: ' + ref_url) | urlencode }}"
+               target="_blank" class="btn btn-sm btn-outline-secondary">
+              <i class="bi bi-twitter-x me-1"></i> Tweet
+            </a>
+          </div>
+
+          <hr style="border-color:var(--wp-border)">
+          <div class="p-3 rounded-3" style="background:var(--wp-surface)">
+            <div class="fw-semibold mb-1" style="font-size:13px">💸 How it works</div>
+            <ol class="mb-0 text-wp-muted" style="font-size:12px;padding-left:18px">
+              <li class="mb-1">Share your unique referral link</li>
+              <li class="mb-1">Friend registers and subscribes to Pro</li>
+              <li class="mb-1">You earn a <strong>20% commission</strong> automatically</li>
+              <li>Commission is sent to your M-Pesa (add phone below)</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Payout phone card -->
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm rounded-3 h-100" style="background:var(--wp-card)">
+        <div class="card-body p-4">
+          <h6 class="fw-bold mb-1">Payout Phone Number</h6>
+          <p class="text-wp-muted mb-3" style="font-size:13px">
+            Enter your M-Pesa number to receive automatic commission payouts.
+          </p>
+          <form method="POST" action="{{ url_for('dashboard.update_phone') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="input-group mb-3">
+              <span class="input-group-text" style="background:var(--wp-surface);border-color:var(--wp-border);color:var(--wp-muted)">
+                <i class="bi bi-phone"></i>
+              </span>
+              <input type="tel" name="phone" class="form-control"
+                placeholder="e.g. 0712345678"
+                value="{{ current_user.phone or '' }}"
+                style="background:var(--wp-surface);border-color:var(--wp-border);color:var(--wp-text)">
+            </div>
+            <button type="submit" class="btn btn-sm" style="background:var(--wp-accent);color:#fff;border:none">
+              <i class="bi bi-save me-1"></i> Save Phone
+            </button>
+          </form>
+
+          {% if stats.pending_earnings > 0 %}
+          <div class="alert mt-3 mb-0 p-2 rounded-2" style="background:#fef9c3;color:#854d0e;font-size:12px;border:1px solid #fde047">
+            <i class="bi bi-clock-history me-1"></i>
+            You have <strong>KES {{ stats.pending_earnings | int }}</strong> in pending commissions.
+            {% if not current_user.phone %}Add your phone number above to receive automatic payouts.{% endif %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Commission history -->
+  {% if stats.commissions %}
+  <div class="card border-0 shadow-sm rounded-3 mt-4" style="background:var(--wp-card)">
+    <div class="card-body p-4">
+      <h6 class="fw-bold mb-3">Commission History</h6>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0" style="font-size:13px">
+          <thead>
+            <tr style="color:var(--wp-muted)">
+              <th>Date</th>
+              <th>Referred User</th>
+              <th>Amount</th>
+              <th>Rate</th>
+              <th>Status</th>
+              <th>Receipt</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in stats.commissions %}
+            <tr>
+              <td>{{ c.created_at[:10] }}</td>
+              <td>{{ c.referred_user }}</td>
+              <td class="fw-semibold">KES {{ c.amount | int }}</td>
+              <td>{{ c.rate | int }}%</td>
+              <td>
+                {% if c.status == 'paid' %}
+                  <span class="badge" style="background:#dcfce7;color:#166534">Paid</span>
+                {% elif c.status == 'failed' %}
+                  <span class="badge" style="background:#fee2e2;color:#991b1b">Failed</span>
+                {% else %}
+                  <span class="badge" style="background:#fef3c7;color:#92400e">Pending</span>
+                {% endif %}
+              </td>
+              <td><code style="font-size:11px">{{ c.mpesa_receipt or '—' }}</code></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+<script>
+function copyLink() {
+  const url = document.getElementById('refUrl');
+  url.select();
+  navigator.clipboard.writeText(url.value).then(() => {
+    const btn = document.getElementById('copyBtn');
+    btn.innerHTML = '<i class="bi bi-check2"></i> Copied!';
+    btn.style.color = '#22c55e';
+    setTimeout(() => { btn.innerHTML = '<i class="bi bi-clipboard"></i> Copy'; btn.style.color = ''; }, 2000);
+  });
+}
+</script>
+{% endblock %}

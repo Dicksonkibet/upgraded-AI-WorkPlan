@@ -1,0 +1,384 @@
+{% extends "base.html" %}
+{% block title %}{{ doc.title }}{% endblock %}
+{% block page_title %}{{ doc.title }}{% endblock %}
+{% block page_sub %}{{ doc.doc_type.title() }} · Last updated {{ doc.updated_at.strftime('%d %b %Y at %H:%M') }}{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+{% endblock %}
+
+{% block topbar_actions %}
+<button class="btn-dv-ghost" onclick="toggleEdit()" id="editToggleBtn">
+  <i class="bi bi-pencil"></i> Edit
+</button>
+<form method="POST" action="{{ url_for('docs.delete', doc_id=doc.id) }}"
+      onsubmit="return confirm('Delete this document?')" style="display:contents">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+  <button type="submit" class="btn-dv-danger"><i class="bi bi-trash"></i></button>
+</form>
+{% endblock %}
+
+{% block content %}
+<style>
+  :root {
+    --dv-accent:   #7c6aff;
+    --dv-accent2:  #27c98a;
+    --dv-warn:     #fbbf24;
+    --dv-danger:   #f87171;
+    --dv-surface:  var(--wp-surface, #1a1d2e);
+    --dv-card:     var(--wp-card, #20243a);
+    --dv-border:   var(--wp-border, rgba(255,255,255,.08));
+    --dv-text:     var(--wp-text, #e2e8f0);
+    --dv-muted:    var(--wp-muted, #64748b);
+    --dv-radius:   12px;
+    --dv-radius-sm:8px;
+  }
+
+  /* ── Buttons ── */
+  .btn-dv-primary {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--dv-accent); color: #fff;
+    border: none; border-radius: var(--dv-radius-sm);
+    padding: 9px 18px; font-size: 13px; font-weight: 600;
+    cursor: pointer;
+    transition: background .15s, transform .1s, box-shadow .15s;
+  }
+  .btn-dv-primary:hover { background: #6b59ee; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(124,106,255,.35); }
+  .btn-dv-ghost {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: transparent; color: var(--dv-muted);
+    border: 1px solid var(--dv-border); border-radius: var(--dv-radius-sm);
+    padding: 7px 13px; font-size: 12px; font-weight: 500;
+    cursor: pointer; text-decoration: none;
+    transition: border-color .15s, color .15s, background .15s;
+  }
+  .btn-dv-ghost:hover { border-color: var(--dv-accent); color: var(--dv-text); background: rgba(124,106,255,.06); }
+  .btn-dv-danger {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: transparent; color: var(--dv-danger);
+    border: 1px solid rgba(248,113,113,.25); border-radius: var(--dv-radius-sm);
+    padding: 7px 11px; font-size: 13px;
+    cursor: pointer;
+    transition: background .15s, border-color .15s;
+  }
+  .btn-dv-danger:hover { background: rgba(248,113,113,.1); border-color: var(--dv-danger); }
+  .btn-dv-full {
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    width: 100%; background: transparent; color: var(--dv-muted);
+    border: 1px solid var(--dv-border); border-radius: var(--dv-radius-sm);
+    padding: 9px; font-size: 12.5px; font-weight: 500;
+    cursor: pointer; text-decoration: none;
+    transition: border-color .15s, color .15s, background .15s;
+    margin-bottom: 8px;
+  }
+  .btn-dv-full:hover { border-color: var(--dv-accent); color: var(--dv-text); background: rgba(124,106,255,.06); }
+  .btn-dv-full:last-child { margin-bottom: 0; }
+
+  /* ── Cards ── */
+  .dv-card {
+    background: var(--dv-card);
+    border: 1px solid var(--dv-border);
+    border-radius: var(--dv-radius);
+    padding: 24px;
+  }
+  .dv-sidebar-card {
+    background: var(--dv-card);
+    border: 1px solid var(--dv-border);
+    border-radius: var(--dv-radius);
+    padding: 18px;
+    margin-bottom: 14px;
+  }
+  .dv-sidebar-title {
+    font-size: 11px; font-weight: 700;
+    letter-spacing: .8px; text-transform: uppercase;
+    color: var(--dv-muted);
+    margin-bottom: 14px;
+    display: flex; align-items: center; gap: 6px;
+  }
+
+  /* ── Doc type chips ── */
+  .doc-type-note     { --dt-color: #a78bfa; --dt-bg: rgba(124,106,255,.12); }
+  .doc-type-report   { --dt-color: #60a5fa; --dt-bg: rgba(79,156,249,.12); }
+  .doc-type-meeting  { --dt-color: #34d399; --dt-bg: rgba(39,201,138,.15); }
+  .doc-type-decision { --dt-color: #fbbf24; --dt-bg: rgba(251,191,36,.15); }
+  .doc-type-policy   { --dt-color: #f87171; --dt-bg: rgba(248,113,113,.15); }
+
+  .dv-type-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 20px;
+    font-size: 11px; font-weight: 600;
+    background: var(--dt-bg); color: var(--dt-color);
+  }
+  .dv-shared-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 9px; border-radius: 20px;
+    font-size: 11px; font-weight: 600;
+    background: rgba(39,201,138,.12); color: #27c98a;
+  }
+  .dv-tag-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 9px; border-radius: 20px;
+    font-size: 11px; font-weight: 600;
+    background: rgba(124,106,255,.1); color: var(--dv-accent);
+  }
+
+  /* ── Content body ── */
+  .dv-content-body {
+    font-size: 14px; line-height: 1.9;
+    color: var(--dv-text);
+    margin-top: 20px;
+  }
+  /* Markdown-rendered output */
+  .dv-content-body h1,.dv-content-body h2,.dv-content-body h3,
+  .dv-content-body h4,.dv-content-body h5 {
+    color: var(--dv-text); font-weight: 700; margin: 1.4em 0 .6em;
+    line-height: 1.3;
+  }
+  .dv-content-body h1 { font-size: 1.5em; border-bottom: 1px solid var(--dv-border); padding-bottom: .4em; }
+  .dv-content-body h2 { font-size: 1.25em; }
+  .dv-content-body h3 { font-size: 1.05em; }
+  .dv-content-body p  { margin-bottom: .85em; }
+  .dv-content-body ul,.dv-content-body ol { padding-left: 1.6em; margin-bottom: .85em; }
+  .dv-content-body li { margin-bottom: .3em; }
+  .dv-content-body blockquote {
+    border-left: 3px solid var(--dv-accent);
+    padding: .4em 1em; margin: 1em 0;
+    color: var(--dv-muted); font-style: italic;
+    background: rgba(124,106,255,.06); border-radius: 0 6px 6px 0;
+  }
+  .dv-content-body code {
+    background: rgba(255,255,255,.07); border-radius: 4px;
+    padding: .15em .4em; font-size: .88em; font-family: monospace;
+    color: var(--dv-accent);
+  }
+  .dv-content-body pre {
+    background: rgba(0,0,0,.2); border-radius: 8px;
+    padding: 1em; overflow-x: auto; margin-bottom: 1em;
+  }
+  .dv-content-body pre code { background: none; padding: 0; color: #e2e8f0; }
+  .dv-content-body strong { color: var(--dv-text); font-weight: 700; }
+  .dv-content-body em     { font-style: italic; }
+  .dv-content-body hr     { border: none; border-top: 1px solid var(--dv-border); margin: 1.5em 0; }
+  .dv-content-body table  { width: 100%; border-collapse: collapse; margin-bottom: 1em; font-size: .9em; }
+  .dv-content-body th { background: rgba(124,106,255,.1); color: var(--dv-text); padding: 8px 12px; text-align: left; font-weight: 700; border: 1px solid var(--dv-border); }
+  .dv-content-body td { padding: 7px 12px; border: 1px solid var(--dv-border); color: var(--dv-text); }
+  .dv-content-body a  { color: var(--dv-accent); text-decoration: underline; }
+  .dv-content-body a:hover { color: #a78bfa; }
+  /* Fallback for plain text (no markdown) */
+  .dv-content-plain { white-space: pre-wrap; }
+  .dv-content-empty {
+    font-size: 13px; color: var(--dv-muted);
+    font-style: italic; margin-top: 20px;
+  }
+
+  /* ── AI summarize output ── */
+  .ai-summary-box {
+    background: rgba(124,106,255,.07); border: 1px solid rgba(124,106,255,.18);
+    border-radius: var(--dv-radius-sm); padding: 14px 16px;
+    font-size: 12.5px; color: var(--dv-text); line-height: 1.7;
+    margin-top: 12px; display: none;
+  }
+  .ai-summary-box .ai-sum-hd {
+    font-size: 11px; font-weight: 700; color: #a78bfa; letter-spacing: .5px;
+    margin-bottom: 8px; display: flex; align-items: center; gap: 5px;
+  }
+
+  /* ── Info rows ── */
+  .dv-info-row {
+    padding: 9px 0;
+    border-bottom: 1px solid var(--dv-border);
+    font-size: 12.5px;
+  }
+  .dv-info-row:last-child { border-bottom: none; }
+  .dv-info-label { color: var(--dv-muted); font-size: 11px; margin-bottom: 2px; }
+  .dv-info-value { color: var(--dv-text); font-weight: 500; }
+
+  /* ── Edit form ── */
+  .dv-label {
+    display: block; font-size: 11px; font-weight: 600;
+    color: var(--dv-muted); letter-spacing: .3px; margin-bottom: 5px;
+  }
+  .dv-input, .dv-select, .dv-textarea {
+    width: 100%;
+    background: var(--dv-surface); border: 1px solid var(--dv-border);
+    border-radius: var(--dv-radius-sm);
+    padding: 9px 12px; font-size: 13px; color: var(--dv-text);
+    outline: none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .dv-input:focus, .dv-select:focus, .dv-textarea:focus {
+    border-color: var(--dv-accent);
+    box-shadow: 0 0 0 3px rgba(124,106,255,.12);
+  }
+  .dv-textarea { resize: vertical; }
+  .dv-check-row {
+    display: flex; align-items: center; gap: 8px; margin-top: 4px;
+  }
+  .dv-check-row input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--dv-accent); cursor: pointer; }
+  .dv-check-row label { font-size: 12.5px; color: var(--dv-text); cursor: pointer; }
+
+  /* ── AI card ── */
+  .ai-assist-card {
+    background: linear-gradient(135deg, rgba(124,106,255,.06), rgba(39,201,138,.06));
+    border: 1px solid rgba(124,106,255,.15);
+    border-radius: var(--dv-radius);
+    padding: 18px;
+  }
+  .ai-assist-title {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; font-weight: 700; color: var(--dv-text);
+    margin-bottom: 8px;
+  }
+  .ai-assist-title .ai-icon {
+    width: 28px; height: 28px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--dv-accent), var(--dv-accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; color: #fff;
+  }
+  .ai-assist-sub { font-size: 12px; color: var(--dv-muted); margin-bottom: 12px; }
+</style>
+
+{% set type_icons = {'note':'bi-sticky','report':'bi-bar-chart-line','meeting':'bi-people','decision':'bi-check2-circle','policy':'bi-shield-check'} %}
+{% set type_class = 'doc-type-' + doc.doc_type %}
+
+<div class="row g-4">
+
+  <!-- ── Main content column ── -->
+  <div class="col-lg-9">
+
+    <!-- View mode -->
+    <div class="dv-card {{ type_class }}" id="viewMode">
+      <div class="d-flex flex-wrap gap-2">
+        <span class="dv-type-chip">
+          <i class="bi {{ type_icons.get(doc.doc_type, 'bi-file-text') }}"></i>
+          {{ doc.doc_type|title }}
+        </span>
+        {% if doc.is_shared %}
+        <span class="dv-shared-chip"><i class="bi bi-people-fill"></i> Shared</span>
+        {% endif %}
+        {% if doc.tags %}
+          {% for tag in doc.tags.split(',') %}
+          <span class="dv-tag-chip"><i class="bi bi-tag"></i>{{ tag.strip() }}</span>
+          {% endfor %}
+        {% endif %}
+      </div>
+
+      {% if doc.content %}
+      <div class="dv-content-body" id="docContentRendered"></div>
+      <!-- AI Summary box (shown after clicking Summarize) -->
+      <div class="ai-summary-box" id="aiSummaryBox">
+        <div class="ai-sum-hd"><i class="bi bi-stars"></i> AI Summary</div>
+        <div id="aiSummaryContent"></div>
+      </div>
+      {% else %}
+      <div class="dv-content-empty">No content yet. Click Edit to add content.</div>
+      {% endif %}
+    </div>
+
+    <!-- Edit mode (hidden) -->
+    <div class="dv-card" id="editMode" style="display:none">
+      <form method="POST" action="{{ url_for('docs.edit', doc_id=doc.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <div class="mb-3">
+          <label class="dv-label">Title</label>
+          <input type="text" name="title" class="dv-input" value="{{ doc.title }}" required/>
+        </div>
+        <div class="row g-2 mb-3">
+          <div class="col-md-6">
+            <label class="dv-label">Type</label>
+            <select name="doc_type" class="dv-select">
+              {% for t in ['note','report','meeting','decision','policy'] %}
+              <option value="{{ t }}" {% if doc.doc_type == t %}selected{% endif %}>{{ t.title() }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="dv-label">Tags</label>
+            <input type="text" name="tags" class="dv-input" value="{{ doc.tags or '' }}" placeholder="tag1, tag2…"/>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="dv-label">Content</label>
+          <textarea name="content" class="dv-textarea" rows="18">{{ doc.content or '' }}</textarea>
+        </div>
+        <div class="dv-check-row mb-4">
+          <input type="checkbox" name="is_shared" id="editShared" {% if doc.is_shared %}checked{% endif %}/>
+          <label for="editShared">Share with all team members</label>
+        </div>
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn-dv-primary"><i class="bi bi-check2"></i> Save Changes</button>
+          <button type="button" class="btn-dv-ghost" onclick="toggleEdit()">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Sidebar ── -->
+  <div class="col-lg-3">
+
+    <!-- Document info -->
+    <div class="dv-sidebar-card">
+      <div class="dv-sidebar-title"><i class="bi bi-info-circle"></i> Document Info</div>
+      <div class="dv-info-row">
+        <div class="dv-info-label">Author</div>
+        <div class="dv-info-value">{{ doc.owner.full_name }}</div>
+      </div>
+      <div class="dv-info-row">
+        <div class="dv-info-label">Created</div>
+        <div class="dv-info-value">{{ doc.created_at.strftime('%d %b %Y') }}</div>
+      </div>
+      <div class="dv-info-row">
+        <div class="dv-info-label">Last Updated</div>
+        <div class="dv-info-value">{{ doc.updated_at.strftime('%d %b %Y at %H:%M') }}</div>
+      </div>
+      <div class="dv-info-row">
+        <div class="dv-info-label">Visibility</div>
+        <div class="dv-info-value">{{ 'Team (Shared)' if doc.is_shared else 'Private' }}</div>
+      </div>
+    </div>
+
+    <!-- AI Assist -->
+    <div class="ai-assist-card">
+      <div class="ai-assist-title">
+        <div class="ai-icon"><i class="bi bi-robot"></i></div>
+        AI Assist
+      </div>
+      <p class="ai-assist-sub">Let AI help you improve or summarize this document.</p>
+      <button class="btn-dv-full" onclick="aiSummarize()">
+        <i class="bi bi-stars"></i> Summarize
+      </button>
+      <a href="{{ url_for('ai.chat') }}" class="btn-dv-full">
+        <i class="bi bi-chat-dots"></i> Ask AI about this
+      </a>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleEdit() {
+  const v = document.getElementById('viewMode');
+  const e = document.getElementById('editMode');
+  const btn = document.getElementById('editToggleBtn');
+  const isEditing = e.style.display !== 'none';
+  v.style.display = isEditing ? '' : 'none';
+  e.style.display = isEditing ? 'none' : '';
+  btn.innerHTML = isEditing
+    ? '<i class="bi bi-pencil"></i> Edit'
+    : '<i class="bi bi-x-lg"></i> Cancel';
+}
+
+function aiSummarize() {
+  const content = `{{ doc.content|replace('\n','\\n')|replace("'","\\'") }}`;
+  fetch('/ai/generate-doc', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+    body: JSON.stringify({ type: 'summary', context: content })
+  }).then(r => r.json()).then(d => {
+    alert('AI Summary:\n\n' + d.reply);
+  });
+}
+</script>
+{% endblock %}

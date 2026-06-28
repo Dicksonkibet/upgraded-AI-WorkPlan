@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Log In{% endblock %}
+{% block auth_content %}
+<div class="auth-wrap">
+  <div class="auth-card">
+
+    <!-- Back to website -->
+    <div class="mb-3">
+      <a href="{{ url_for('landing.index') }}"
+        style="font-size:12px;color:var(--wp-muted);text-decoration:none;display:inline-flex;align-items:center;gap:4px;transition:color .15s"
+        onmouseover="this.style.color='var(--wp-accent)'"
+        onmouseout="this.style.color='var(--wp-muted)'">
+        <i class="bi bi-arrow-left"></i> Back to website
+      </a>
+    </div>
+
+    <div class="auth-logo">🏢</div>
+    <h4 class="text-center fw-bold mb-1">Welcome back</h4>
+    <p class="text-center text-wp-muted mb-4" style="font-size:13px">Sign in to your WorkPro account</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for cat, msg in messages %}
+      <div class="alert alert-{{ cat }} py-2 mb-3" style="font-size:13px">{{ msg }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    {% if error %}
+      {% if unverified_email %}
+      <div class="alert alert-warning py-3 mb-3" style="font-size:13px">
+        <div class="d-flex align-items-start gap-2">
+          <i class="bi bi-envelope-exclamation-fill mt-1" style="font-size:1rem;flex-shrink:0"></i>
+          <div>
+            <strong>Email not verified</strong>
+            <p class="mb-2 mt-1" style="font-size:12px;color:inherit;opacity:0.85">
+              Please check your inbox and click the verification link before signing in.
+            </p>
+            <form method="POST" action="{{ url_for('auth.resend_verification') }}" class="d-inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="email" value="{{ unverified_email }}">
+              <button type="submit"
+                style="background:none;border:none;padding:0;font-size:12px;color:var(--wp-accent);font-weight:600;cursor:pointer;text-decoration:underline">
+                Resend verification email →
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div class="alert alert-danger py-2 mb-3" style="font-size:13px">
+        <i class="bi bi-exclamation-circle me-1"></i>{{ error }}
+      </div>
+      {% endif %}
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('auth.login') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <div class="mb-3">
+        <label class="form-label">Email address</label>
+        <div class="input-group">
+          <span class="input-group-text" style="background:var(--wp-surface);border-color:var(--wp-border);color:var(--wp-muted)">
+            <i class="bi bi-envelope"></i>
+          </span>
+          <input type="email" name="email" class="form-control"
+            placeholder="Enter Your Email"
+            value="{{ unverified_email or '' }}"
+            required autofocus/>
+        </div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label d-flex justify-content-between">
+          Password
+          <a href="{{ url_for('auth.forgot_password') }}" style="font-size:12px;color:var(--wp-accent)">Forgot password?</a>
+        </label>
+        <div class="input-group">
+          <span class="input-group-text" style="background:var(--wp-surface);border-color:var(--wp-border);color:var(--wp-muted)">
+            <i class="bi bi-lock"></i>
+          </span>
+          <input type="password" name="password" id="pwdInput"
+            class="form-control" placeholder="Enter Your Password" required/>
+          <button type="button" class="input-group-text"
+            style="background:var(--wp-surface);border-color:var(--wp-border);color:var(--wp-muted);cursor:pointer"
+            onclick="togglePwd()">
+            <i class="bi bi-eye" id="eyeIcon"></i>
+          </button>
+        </div>
+      </div>
+      <div class="mb-4">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="remember" id="rememberMe"/>
+          <label class="form-check-label" for="rememberMe" style="font-size:13px">Remember me</label>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-wp-primary w-100 py-2">
+        <i class="bi bi-box-arrow-in-right me-1"></i> Sign In
+      </button>
+    </form>
+
+    <p class="text-center mt-4 mb-0" style="font-size:13px;color:var(--wp-muted)">
+      Don't have an account?
+      <a href="{{ url_for('auth.register') }}" style="color:var(--wp-accent);font-weight:500">Register</a>
+    </p>
+  </div>
+</div>
+
+<script>
+function togglePwd() {
+  const i = document.getElementById('pwdInput');
+  const e = document.getElementById('eyeIcon');
+  i.type = i.type === 'password' ? 'text' : 'password';
+  e.className = i.type === 'password' ? 'bi bi-eye' : 'bi bi-eye-slash';
+}
+</script>
+{% endblock %}

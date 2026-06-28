@@ -1,0 +1,293 @@
+{% extends "base.html" %}
+{% block title %}My Profile{% endblock %}
+{% block page_title %}My Profile{% endblock %}
+{% block page_sub %}Manage your account settings{% endblock %}
+{% block content %}
+
+<style>
+  /* ── Design tokens (mirrors dashboard) ── */
+  :root {
+    --dash-accent:   #7c6aff;
+    --dash-accent2:  #27c98a;
+    --dash-warn:     #f5a623;
+    --dash-info:     #4f9cf9;
+    --dash-danger:   #f87171;
+    --dash-surface:  var(--wp-surface, #1a1d2e);
+    --dash-card:     var(--wp-card, #20243a);
+    --dash-border:   var(--wp-border, rgba(255,255,255,.08));
+    --dash-text:     var(--wp-text, #e2e8f0);
+    --dash-muted:    var(--wp-muted, #64748b);
+    --dash-radius:   12px;
+    --dash-radius-sm:8px;
+  }
+
+  /* ── Cards ── */
+  .d-card {
+    background: var(--dash-card);
+    border: 1px solid var(--dash-border);
+    border-radius: var(--dash-radius);
+    padding: 22px;
+    height: 100%;
+  }
+  .d-card-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--dash-text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .d-card-title .t-icon {
+    width: 26px; height: 26px;
+    border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+
+  /* ── Avatar ── */
+  .d-avatar {
+    width: 68px; height: 68px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px;
+    font-weight: 700;
+    color: #fff;
+    border: 2px solid var(--dash-border);
+    margin: 0 auto 10px;
+  }
+
+  /* ── Form controls ── */
+  .d-form-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+    color: var(--dash-muted);
+    margin-bottom: 5px;
+  }
+  .d-form-control {
+    background: var(--dash-surface);
+    border: 1px solid var(--dash-border);
+    border-radius: var(--dash-radius-sm);
+    color: var(--dash-text);
+    font-size: 13px;
+    padding: 8px 12px;
+    width: 100%;
+    transition: border-color .15s;
+    outline: none;
+  }
+  .d-form-control:focus {
+    border-color: var(--dash-accent);
+    box-shadow: 0 0 0 3px rgba(124,106,255,.12);
+  }
+  .d-form-control::placeholder { color: var(--dash-muted); }
+  input[type="color"].d-form-control {
+    padding: 4px 6px;
+    height: 40px;
+    cursor: pointer;
+  }
+
+  /* ── Divider ── */
+  .d-divider {
+    border: none;
+    border-top: 1px solid var(--dash-border);
+    margin: 18px 0;
+  }
+
+  /* ── Primary button ── */
+  .btn-d-primary {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    background: var(--dash-accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--dash-radius-sm);
+    padding: 9px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    width: 100%;
+    cursor: pointer;
+    transition: opacity .15s, transform .1s;
+  }
+  .btn-d-primary:hover { opacity: .88; transform: translateY(-1px); }
+
+  /* ── Alert ── */
+  .d-alert-danger {
+    background: rgba(248,113,113,.1);
+    border: 1px solid rgba(248,113,113,.25);
+    border-radius: var(--dash-radius-sm);
+    color: #f87171;
+    font-size: 12.5px;
+    padding: 9px 13px;
+    margin-bottom: 16px;
+  }
+
+  /* ── Detail grid ── */
+  .d-detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+  }
+  .d-detail-item .d-detail-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .8px;
+    text-transform: uppercase;
+    color: var(--dash-muted);
+    margin-bottom: 4px;
+  }
+  .d-detail-item .d-detail-value {
+    font-size: 13px;
+    color: var(--dash-text);
+    font-weight: 500;
+  }
+
+  /* ── Badges ── */
+  .d-badge {
+    display: inline-flex; align-items: center;
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .d-badge-admin   { background: rgba(248,113,113,.15); color: #f87171; }
+  .d-badge-pro     { background: rgba(124,106,255,.15); color: #a78bfa; }
+  .d-badge-free    { background: rgba(100,116,139,.15); color: #94a3b8; }
+  .d-badge-member  { background: rgba(39,201,138,.15);  color: #27c98a; }
+
+  /* ── Verified pill ── */
+  .d-verified-yes {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: rgba(39,201,138,.12);
+    color: #27c98a;
+    border-radius: 20px;
+    padding: 3px 9px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .d-verified-no {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: rgba(248,113,113,.12);
+    color: #f87171;
+    border-radius: 20px;
+    padding: 3px 9px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+</style>
+
+<div class="row g-4">
+
+  <!-- ── Personal Information ── -->
+  <div class="col-lg-5">
+    <div class="d-card">
+      <div class="d-card-title">
+        <div class="t-icon" style="background:rgba(124,106,255,.15)">
+          <i class="bi bi-person" style="color:#a78bfa"></i>
+        </div>
+        Personal Information
+      </div>
+
+      {% if error %}
+      <div class="d-alert-danger"><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</div>
+      {% endif %}
+
+      <!-- Avatar / name preview -->
+      <div class="text-center mb-4">
+        <div class="d-avatar" style="background:{{ current_user.avatar_color }}">
+          {{ current_user.initials }}
+        </div>
+        <div style="font-size:14px;font-weight:700;color:var(--dash-text)">{{ current_user.full_name }}</div>
+        <div style="margin-top:5px">
+          <span class="d-badge d-badge-{{ current_user.role.name }}">{{ current_user.role.name }}</span>
+        </div>
+      </div>
+
+      <form method="POST" action="{{ url_for('dashboard.profile') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+        <div class="row g-3 mb-3">
+          <div class="col-6">
+            <label class="d-form-label">First Name</label>
+            <input type="text" name="first_name" class="d-form-control" value="{{ current_user.first_name }}"/>
+          </div>
+          <div class="col-6">
+            <label class="d-form-label">Last Name</label>
+            <input type="text" name="last_name" class="d-form-control" value="{{ current_user.last_name }}"/>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="d-form-label">Email</label>
+          <input type="email" name="email" class="d-form-control" value="{{ current_user.email }}"/>
+        </div>
+
+        <div class="mb-3">
+          <label class="d-form-label">Avatar Color</label>
+          <input type="color" name="avatar_color" class="d-form-control" value="{{ current_user.avatar_color }}"/>
+        </div>
+
+        <hr class="d-divider"/>
+
+        <div class="mb-4">
+          <label class="d-form-label">New Password <span style="color:var(--dash-muted);text-transform:none;letter-spacing:0;font-weight:400">(leave blank to keep current)</span></label>
+          <input type="password" name="password" class="d-form-control" placeholder="••••••••" minlength="8"/>
+        </div>
+
+        <button type="submit" class="btn-d-primary">
+          <i class="bi bi-check2"></i> Save Changes
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Account Details ── -->
+  <div class="col-lg-7">
+    <div class="d-card">
+      <div class="d-card-title">
+        <div class="t-icon" style="background:rgba(79,156,249,.12)">
+          <i class="bi bi-shield-check" style="color:#60a5fa"></i>
+        </div>
+        Account Details
+      </div>
+
+      <div class="d-detail-grid">
+        <div class="d-detail-item">
+          <div class="d-detail-label">Email</div>
+          <div class="d-detail-value">{{ current_user.email }}</div>
+        </div>
+        <div class="d-detail-item">
+          <div class="d-detail-label">Role</div>
+          <div class="d-detail-value">
+            <span class="d-badge d-badge-{{ current_user.role.name }}">{{ current_user.role.name }}</span>
+          </div>
+        </div>
+        <div class="d-detail-item">
+          <div class="d-detail-label">Member Since</div>
+          <div class="d-detail-value">{{ current_user.created_at.strftime('%d %B %Y') }}</div>
+        </div>
+        <div class="d-detail-item">
+          <div class="d-detail-label">Last Login</div>
+          <div class="d-detail-value">{{ current_user.last_login.strftime('%d %b %Y %H:%M') if current_user.last_login else 'N/A' }}</div>
+        </div>
+        <div class="d-detail-item">
+          <div class="d-detail-label">Theme</div>
+          <div class="d-detail-value">{{ current_user.theme | title }}</div>
+        </div>
+        <div class="d-detail-item">
+          <div class="d-detail-label">Email Verified</div>
+          <div class="d-detail-value">
+            {% if current_user.is_verified %}
+            <span class="d-verified-yes"><i class="bi bi-check-circle-fill"></i> Verified</span>
+            {% else %}
+            <span class="d-verified-no"><i class="bi bi-x-circle-fill"></i> Unverified</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

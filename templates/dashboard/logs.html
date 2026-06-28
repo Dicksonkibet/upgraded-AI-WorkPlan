@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}Activity Log{% endblock %}
+{% block page_title %}Activity Log{% endblock %}
+{% block page_sub %}Complete history of your actions{% endblock %}
+{% block content %}
+
+<style>
+  :root {
+    --dash-accent:    #7c6aff;
+    --dash-accent2:   #27c98a;
+    --dash-warn:      #f5a623;
+    --dash-surface:   var(--wp-surface, #1a1d2e);
+    --dash-card:      var(--wp-card, #20243a);
+    --dash-border:    var(--wp-border, rgba(255,255,255,.08));
+    --dash-text:      var(--wp-text, #e2e8f0);
+    --dash-muted:     var(--wp-muted, #64748b);
+    --dash-radius:    12px;
+    --dash-radius-sm: 8px;
+  }
+
+  .d-card {
+    background: var(--dash-card);
+    border: 1px solid var(--dash-border);
+    border-radius: var(--dash-radius);
+    padding: 22px;
+  }
+  .d-card-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--dash-text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .d-card-title .t-icon {
+    width: 26px; height: 26px;
+    border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+
+  /* ── Log rows ── */
+  .d-log-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--dash-border);
+    transition: background .12s;
+  }
+  .d-log-row:last-child { border-bottom: none; }
+  .d-log-row:hover { background: rgba(255,255,255,.02); border-radius: var(--dash-radius-sm); }
+
+  .d-log-pip {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin-top: 5px;
+    flex-shrink: 0;
+  }
+
+  .d-log-type {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .6px;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 20px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .d-log-type-task     { background: rgba(124,106,255,.13); color: #a78bfa; }
+  .d-log-type-document { background: rgba(39,201,138,.13);  color: #27c98a; }
+  .d-log-type-other    { background: rgba(245,166,35,.13);   color: #fbbf24; }
+
+  .d-log-action {
+    font-size: 13px;
+    color: var(--dash-text);
+    line-height: 1.4;
+    flex: 1;
+  }
+  .d-log-details {
+    font-size: 11.5px;
+    color: var(--dash-muted);
+    margin-top: 3px;
+    line-height: 1.4;
+  }
+
+  .d-log-time {
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .d-log-time .time {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--dash-text);
+    font-variant-numeric: tabular-nums;
+  }
+  .d-log-time .date {
+    font-size: 10.5px;
+    color: var(--dash-muted);
+    margin-top: 2px;
+    white-space: nowrap;
+  }
+
+  /* ── Empty state ── */
+  .d-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 0;
+    color: var(--dash-muted);
+    gap: 10px;
+  }
+  .d-empty-icon { font-size: 32px; opacity: .35; }
+  .d-empty-label { font-size: 13px; }
+</style>
+
+<div class="d-card">
+  <div class="d-card-title">
+    <div class="t-icon" style="background:rgba(79,156,249,.12)">
+      <i class="bi bi-clock-history" style="color:#60a5fa"></i>
+    </div>
+    Full Activity History
+  </div>
+
+  {% if logs %}
+    {% for log in logs %}
+    <div class="d-log-row">
+      <!-- colour pip -->
+      <div class="d-log-pip" style="background:{% if log.entity_type == 'task' %}var(--dash-accent){% elif log.entity_type == 'document' %}var(--dash-accent2){% else %}#fbbf24{% endif %}"></div>
+
+      <!-- type badge -->
+      <span class="d-log-type d-log-type-{% if log.entity_type in ['task','document'] %}{{ log.entity_type }}{% else %}other{% endif %}">
+        {% if log.entity_type == 'task' %}<i class="bi bi-list-check me-1"></i>{% elif log.entity_type == 'document' %}<i class="bi bi-file-earmark-text me-1"></i>{% else %}<i class="bi bi-activity me-1"></i>{% endif %}
+        {{ log.entity_type | default('system') }}
+      </span>
+
+      <!-- action + details -->
+      <div class="flex-grow-1">
+        <div class="d-log-action">{{ log.action }}</div>
+        {% if log.details %}
+        <div class="d-log-details">{{ log.details }}</div>
+        {% endif %}
+      </div>
+
+      <!-- timestamp -->
+      <div class="d-log-time">
+        <div class="time">{{ log.created_at.strftime('%H:%M') }}</div>
+        <div class="date">{{ log.created_at.strftime('%d %b %Y') }}</div>
+      </div>
+    </div>
+    {% endfor %}
+
+  {% else %}
+  <div class="d-empty">
+    <div class="d-empty-icon"><i class="bi bi-clock-history"></i></div>
+    <div class="d-empty-label">No activity recorded yet</div>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

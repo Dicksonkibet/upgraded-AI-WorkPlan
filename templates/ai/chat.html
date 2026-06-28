@@ -1,0 +1,1536 @@
+{% extends "base.html" %}
+{% block title %}AI Agent{% endblock %}
+{% block page_title %}WorkPro AI Agent{% endblock %}
+{% block page_sub %}
+  {% if current_user.is_pro %}
+    <span class="badge" style="background:linear-gradient(135deg,var(--wp-accent),var(--wp-accent2));font-size:10px;padding:3px 8px;border-radius:20px">⚡ Full System Access</span>
+  {% else %}
+    {% set trial_remaining = trial_tasks_remaining if trial_tasks_remaining is defined else 20 %}
+    {% if trial_remaining > 0 %}
+      <span class="badge bg-warning text-dark" style="font-size:10px;padding:3px 8px;border-radius:20px">🎁 Pro Trial: {{ trial_remaining }} tasks left</span>
+    {% else %}
+      <span class="badge bg-secondary" style="font-size:10px;padding:3px 8px;border-radius:20px">Free Plan · {{ limits.ai_msgs - usage.ai_msgs }} AI msgs left today</span>
+    {% endif %}
+  {% endif %}
+{% endblock %}
+
+{% block topbar_actions %}
+<button class="btn btn-sm btn-wp-ghost" onclick="clearChat()" title="Clear conversation"><i class="bi bi-arrow-counterclockwise"></i></button>
+<button class="btn btn-sm btn-wp-ghost" onclick="showReports()" title="Generate Reports"><i class="bi bi-file-earmark-bar-graph"></i></button>
+{% endblock %}
+
+{% block content %}
+<div class="ai-agent-layout">
+
+  <!-- ── Left Panel: Services + Info ── -->
+  <div class="ai-panel-left" id="aiPanelLeft">
+
+    <!-- Service Selector -->
+    <div class="ai-services-card">
+      <div class="ai-services-header">
+        <i class="bi bi-grid-3x3-gap-fill me-2" style="color:var(--wp-accent)"></i>
+        <strong>AI Services</strong>
+        <span class="ms-auto" style="font-size:11px;color:var(--wp-muted)">Select to begin</span>
+      </div>
+
+      <div class="service-grid">
+        <!-- Task Management -->
+        <button class="service-btn" onclick="selectService('task_create')" data-service="task_create">
+          <div class="service-icon" style="background:rgba(124,106,255,.15);color:#a78bfa">
+            <i class="bi bi-plus-circle-fill"></i>
+          </div>
+          <div class="service-info">
+            <div class="service-name">Create Task</div>
+            <div class="service-desc">Add a new task</div>
+          </div>
+        </button>
+
+        <button class="service-btn" onclick="selectService('task_update')" data-service="task_update">
+          <div class="service-icon" style="background:rgba(245,158,11,.15);color:#fbbf24">
+            <i class="bi bi-pencil-square"></i>
+          </div>
+          <div class="service-info">
+            <div class="service-name">Update Task</div>
+            <div class="service-desc">Edit or change status</div>
+          </div>
+        </button>
+
+        <button class="service-btn" onclick="selectService('task_delete')" data-service="task_delete">
+          <div class="service-icon" style="background:rgba(239,68,68,.12);color:#f87171">
+            <i class="bi bi-trash3"></i>
+          </div>
+          <div class="service-info">
+            <div class="service-name">Delete Task</div>
+            <div class="service-desc">Remove a task</div>
+          </div>
+        </button>
+
+        <button class="service-btn" onclick="selectService('plan_day')" data-service="plan_day">
+          <div class="service-icon" style="background:rgba(6,182,212,.12);color:#22d3ee">
+            <i class="bi bi-calendar3-week-fill"></i>
+          </div>
+          <div class="service-info">
+            <div class="service-name">Plan My Day</div>
+            <div class="service-desc">AI schedules your day</div>
+          </div>
+        </button>
+
+        <button class="service-btn" onclick="selectService('doc_create')" data-service="doc_create">
+          <div class="service-icon" style="background:rgba(16,185,129,.12);color:#34d399">
+            <i class="bi bi-file-earmark-plus-fill"></i>
+          </div>
+          <div class="service-info">
+            <div class="service-name">Create Document</div>
+            <div class="service-desc">Notes, reports & more</div>
+          </div>
+        </button>
+
+        <button class="service-btn" onclick="selectService('generate_report')" data-service="generate_report">
+          <div class="service-icon" style="background:rgba(99,102,241,.12);color:#818cf8">
+            <i class="bi bi-bar-chart-line-fill"></i>
+          </div>
+          <div class="service-info">
+            <div class="service-name">Generate Report</div>
+            <div class="service-desc">Analytics & insights</div>
+          </div>
+        </button>
+
+        <button class="service-btn" onclick="selectService('task_summary')" data-service="task_summary">
+          <div class="service-icon" style="background:rgba(251,146,60,.12);color:#fb923c">
+            <i class="bi bi-list-stars"></i>
+          </div>
+          <div class="service-info">
+            <div class="service-name">Summarize Tasks</div>
+            <div class="service-desc">Priority breakdown</div>
+          </div>
+        </button>
+
+        <button class="service-btn" onclick="selectService('system_explain')" data-service="system_explain">
+          <div class="service-icon" style="background:rgba(139,92,246,.12);color:#a78bfa">
+            <i class="bi bi-info-circle-fill"></i>
+          </div>
+          <div class="service-info">
+            <div class="service-name">Explain System</div>
+            <div class="service-desc">How WorkPro works</div>
+          </div>
+        </button>
+
+        <button class="service-btn" onclick="selectService('free_chat')" data-service="free_chat">
+          <div class="service-icon" style="background:rgba(59,130,246,.12);color:#60a5fa">
+            <i class="bi bi-chat-dots-fill"></i>
+          </div>
+          <div class="service-info">
+            <div class="service-name">Free Chat</div>
+            <div class="service-desc">Ask anything</div>
+          </div>
+        </button>
+      </div>
+    </div>
+
+    <!-- AI Capabilities Info -->
+    <div class="ai-info-card">
+      <div class="ai-info-header"><i class="bi bi-robot me-2"></i>Agent Capabilities</div>
+      <div class="ai-capability-list">
+        <div class="ai-cap {% if current_user.is_pro or (trial_tasks_remaining is defined and trial_tasks_remaining > 0) %}enabled{% else %}disabled{% endif %}">
+          <i class="bi bi-check-circle-fill"></i>
+          <span>Create & manage tasks</span>
+        </div>
+        <div class="ai-cap {% if current_user.is_pro %}enabled{% else %}disabled{% endif %}">
+          <i class="bi bi-check-circle-fill"></i>
+          <span>Daily planning & scheduling</span>
+        </div>
+        <div class="ai-cap {% if current_user.is_pro %}enabled{% else %}disabled{% endif %}">
+          <i class="bi bi-check-circle-fill"></i>
+          <span>Create documents & reports</span>
+        </div>
+        <div class="ai-cap enabled">
+          <i class="bi bi-check-circle-fill"></i>
+          <span>System guidance & Q&A</span>
+        </div>
+        <div class="ai-cap {% if current_user.is_pro %}enabled{% else %}disabled{% endif %}">
+          <i class="bi bi-check-circle-fill"></i>
+          <span>Advanced analytics</span>
+        </div>
+      </div>
+      {% if not current_user.is_pro %}
+      <a href="{{ url_for('subscription.index') }}" class="btn btn-wp-primary btn-sm w-100 mt-3">
+        <i class="bi bi-stars me-1"></i>Upgrade to Pro — Unlock All
+      </a>
+      {% endif %}
+    </div>
+
+  </div>
+
+  <!-- ── Center: Chat Area ── -->
+  <div class="ai-chat-area">
+
+    <!-- Active Service Banner -->
+    <div id="activeBanner" class="active-service-banner" style="display:none">
+      <div class="d-flex align-items-center gap-2">
+        <div id="bannerIcon" class="banner-icon"></div>
+        <div>
+          <div id="bannerTitle" class="banner-title"></div>
+          <div id="bannerDesc" class="banner-desc"></div>
+        </div>
+      </div>
+      <button class="btn btn-sm btn-wp-ghost" onclick="clearService()" style="font-size:11px">
+        <i class="bi bi-x me-1"></i>Clear
+      </button>
+    </div>
+
+    <!-- Chat Messages -->
+    <div id="chatMessages" class="chat-messages-wrap">
+      <div id="messageList" class="message-list">
+
+        <!-- Welcome -->
+        <div class="msg-row ai">
+          <div class="msg-avatar ai-avatar">
+            <i class="bi bi-robot"></i>
+          </div>
+          <div class="msg-content-wrap">
+            <div class="msg-bubble ai-bubble">
+              <div class="ai-welcome">
+                <div class="welcome-greeting">Hello, <strong>{{ current_user.first_name }}</strong>! 👋</div>
+                <div class="welcome-body">
+                  I'm your <strong>WorkPro AI Agent</strong> — your intelligent system assistant with full access to your workspace.
+                  {% if current_user.is_pro %}
+                    I can <strong>create tasks</strong>, <strong>manage plans</strong>, <strong>generate reports</strong>, and handle anything in your system. Just select a service or type freely.
+                  {% else %}
+                    {% set tr = trial_tasks_remaining if trial_tasks_remaining is defined else 20 %}
+                    {% if tr > 0 %}
+                      You're on a <strong>Pro Trial</strong> — {{ tr }} free task actions remaining! After that, you'll switch to the Free plan.
+                    {% else %}
+                      You're on the <strong>Free Plan</strong>. I can answer questions and summarize your data. <a href="{{ url_for('subscription.index') }}" style="color:var(--wp-accent)">Upgrade to Pro</a> for full AI management.
+                    {% endif %}
+                  {% endif %}
+                </div>
+                <div class="welcome-hint">👈 Select a service from the left to get started, or just type your request below.</div>
+              </div>
+            </div>
+            <div class="msg-time">WorkPro AI Agent · just now</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Form Panel (appears when service selected) -->
+    <div id="formPanel" class="form-panel" style="display:none">
+      <div class="form-panel-header">
+        <div id="formTitle" class="form-panel-title"></div>
+        <button class="btn btn-sm btn-wp-ghost" onclick="closeFormPanel()"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <div id="formBody" class="form-panel-body"></div>
+      <div class="form-panel-footer">
+        <button class="btn btn-wp-ghost btn-sm" onclick="closeFormPanel()">Cancel</button>
+        <button class="btn btn-wp-primary btn-sm" onclick="submitForm()" id="formSubmitBtn">
+          <i class="bi bi-send me-1"></i>Submit to AI
+        </button>
+      </div>
+    </div>
+
+    <!-- Input -->
+    <div class="chat-input-wrap">
+      <div class="chat-input-inner">
+        <div id="serviceChip" class="service-chip" style="display:none">
+          <span id="serviceChipLabel"></span>
+          <button onclick="clearService()" style="background:none;border:none;padding:0;line-height:1;cursor:pointer;color:inherit"><i class="bi bi-x"></i></button>
+        </div>
+        <textarea id="chatInput" class="chat-textarea" rows="1"
+          placeholder="Select a service above, or type your message…"
+          onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+        <button class="send-btn" onclick="sendMessage()" id="sendBtn">
+          <i class="bi bi-send-fill"></i>
+        </button>
+      </div>
+      <div class="chat-input-hint">
+        Enter to send · Shift+Enter for newline
+        <span id="aiMsgCounter" class="ms-2 {% if current_user.is_pro %}text-success{% else %}text-warning{% endif %}">
+          {% if current_user.is_pro %}
+            <i class="bi bi-infinity"></i> Unlimited
+          {% else %}
+            {{ limits.ai_msgs - usage.ai_msgs }}/{{ limits.ai_msgs }} msgs today
+          {% endif %}
+        </span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Reports Modal -->
+<div class="modal fade" id="reportsModal" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content" style="background:var(--wp-surface)">
+      <div class="modal-header" style="border-color:var(--wp-border)">
+        <h5 class="modal-title"><i class="bi bi-bar-chart-line me-2" style="color:var(--wp-accent)"></i>AI-Generated Reports</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3 mb-4">
+          <div class="col-md-4">
+            <button class="report-type-btn active w-100" onclick="selectReport(this,'productivity')" data-type="productivity">
+              <i class="bi bi-graph-up-arrow"></i>
+              <div>Productivity Report</div>
+              <small>Tasks, completion rates, trends</small>
+            </button>
+          </div>
+          <div class="col-md-4">
+            <button class="report-type-btn w-100" onclick="selectReport(this,'status')" data-type="status">
+              <i class="bi bi-clipboard-data"></i>
+              <div>Status Report</div>
+              <small>Current work overview</small>
+            </button>
+          </div>
+          <div class="col-md-4">
+            <button class="report-type-btn w-100" onclick="selectReport(this,'performance')" data-type="performance">
+              <i class="bi bi-speedometer2"></i>
+              <div>Performance Analysis</div>
+              <small>Efficiency & priorities</small>
+            </button>
+          </div>
+        </div>
+        <div id="reportContent" class="report-output-area">
+          <div class="report-placeholder">
+            <i class="bi bi-bar-chart-line" style="font-size:48px;opacity:.3"></i>
+            <p class="mt-3 text-wp-muted">Select a report type above and click Generate</p>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="border-color:var(--wp-border)">
+        <button class="btn btn-wp-ghost btn-sm" data-bs-dismiss="modal">Close</button>
+        <button class="btn btn-wp-primary btn-sm" onclick="generateReport()">
+          <i class="bi bi-magic me-1"></i>Generate Report
+        </button>
+        <button class="btn btn-wp-ghost btn-sm" onclick="printReport()" id="printReportBtn" style="display:none">
+          <i class="bi bi-printer me-1"></i>Print / Export
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.11/dist/purify.min.js"></script>
+<style>
+/* ── AI Agent Layout ─────────────────────────── */
+.ai-agent-layout {
+  display: flex;
+  gap: 16px;
+  height: calc(100vh - 140px);
+}
+
+/* ── Left Panel ── */
+.ai-panel-left {
+  width: 280px;
+  min-width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--wp-border) transparent;
+}
+
+.ai-services-card, .ai-info-card {
+  background: var(--wp-surface);
+  border: 1px solid var(--wp-border);
+  border-radius: 14px;
+  padding: 14px;
+  box-shadow: var(--wp-shadow);
+}
+
+.ai-services-header {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--wp-text);
+}
+
+.service-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.service-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  background: transparent;
+  border: 1px solid var(--wp-border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all .18s ease;
+  text-align: left;
+  color: var(--wp-text);
+}
+
+.service-btn:hover {
+  background: var(--wp-accent-bg);
+  border-color: var(--wp-accent);
+  transform: translateX(2px);
+}
+
+.service-btn.active {
+  background: var(--wp-accent-bg);
+  border-color: var(--wp-accent);
+  box-shadow: 0 0 0 2px rgba(79,70,229,.15);
+}
+
+.service-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.service-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.service-desc {
+  font-size: 10.5px;
+  color: var(--wp-muted);
+  line-height: 1.2;
+  margin-top: 1px;
+}
+
+/* AI Info Card */
+.ai-info-header {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wp-muted);
+  text-transform: uppercase;
+  letter-spacing: .7px;
+  margin-bottom: 10px;
+}
+
+.ai-capability-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ai-cap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.ai-cap.enabled i { color: #10b981; }
+.ai-cap.disabled { opacity: .45; }
+.ai-cap.disabled i { color: var(--wp-muted); }
+
+/* ── Chat Area ── */
+.ai-chat-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--wp-surface);
+  border: 1px solid var(--wp-border);
+  border-radius: 14px;
+  box-shadow: var(--wp-shadow);
+  overflow: hidden;
+}
+
+/* Active Banner */
+.active-service-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: var(--wp-accent-bg);
+  border-bottom: 1px solid var(--wp-border);
+  font-size: 13px;
+}
+
+.banner-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, var(--wp-accent), var(--wp-accent2));
+  color: #fff;
+}
+
+.banner-title { font-weight: 600; font-size: 13px; }
+.banner-desc  { font-size: 11px; color: var(--wp-muted); }
+
+/* Chat messages */
+.chat-messages-wrap {
+  flex: 1;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  padding: 16px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--wp-border) transparent;
+}
+
+.message-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.msg-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.msg-row.user {
+  flex-direction: row-reverse;
+}
+
+.msg-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  flex-shrink: 0;
+  color: #fff;
+}
+
+.ai-avatar {
+  background: linear-gradient(135deg, var(--wp-accent), var(--wp-accent2));
+}
+
+.user-avatar {
+  background: {{ current_user.avatar_color }};
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.msg-content-wrap { max-width: 640px; }
+.msg-row.user .msg-content-wrap { align-items: flex-end; display: flex; flex-direction: column; }
+
+.msg-bubble {
+  padding: 11px 15px;
+  border-radius: 4px 14px 14px 14px;
+  font-size: 13.5px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ai-bubble {
+  background: var(--wp-bg);
+  color: var(--wp-text);
+  border-radius: 4px 14px 14px 14px;
+  white-space: normal;
+}
+
+.user-bubble {
+  background: var(--wp-accent);
+  color: #fff;
+  border-radius: 14px 4px 14px 14px;
+}
+
+.msg-time {
+  font-size: 10.5px;
+  color: var(--wp-muted);
+  margin-top: 4px;
+  padding: 0 2px;
+}
+
+/* Welcome */
+.ai-welcome { }
+.welcome-greeting { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+.welcome-body  { font-size: 13.5px; line-height: 1.7; margin-bottom: 8px; }
+.welcome-hint  { font-size: 12px; color: var(--wp-muted); border-top: 1px solid var(--wp-border); padding-top: 8px; }
+
+/* Action result chip */
+.action-result {
+  margin-top: 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  border: 1px solid;
+}
+
+.action-result.success {
+  background: rgba(16,185,129,.08);
+  border-color: rgba(16,185,129,.3);
+  color: #065f46;
+}
+
+[data-bs-theme="dark"] .action-result.success { color: #6ee7b7; }
+
+.action-result.error {
+  background: rgba(239,68,68,.08);
+  border-color: rgba(239,68,68,.3);
+  color: #b91c1c;
+}
+
+[data-bs-theme="dark"] .action-result.error { color: #fca5a5; }
+
+/* Confirm row */
+.confirm-row {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Typing */
+.typing-bubble {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  padding: 14px 16px;
+}
+
+.typing-dot {
+  width: 7px;
+  height: 7px;
+  background: var(--wp-muted);
+  border-radius: 50%;
+  animation: typingPulse 1.2s infinite;
+}
+
+.typing-dot:nth-child(2) { animation-delay: .2s; }
+.typing-dot:nth-child(3) { animation-delay: .4s; }
+
+@keyframes typingPulse {
+  0%, 100% { opacity: .3; transform: scale(.8); }
+  50%       { opacity: 1; transform: scale(1.15); }
+}
+
+/* Form Panel */
+.form-panel {
+  border-top: 1px solid var(--wp-border);
+  background: var(--wp-bg);
+  padding: 0;
+  max-height: 340px;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.form-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--wp-text);
+  border-bottom: 1px solid var(--wp-border);
+  background: var(--wp-surface);
+}
+
+.form-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.form-panel-body {
+  padding: 14px 16px;
+}
+
+.form-panel-body .form-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wp-muted);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom: 5px;
+}
+
+.form-panel-body .form-control,
+.form-panel-body .form-select {
+  background: var(--wp-surface);
+  border: 1px solid var(--wp-border);
+  color: var(--wp-text);
+  font-size: 13px;
+  border-radius: 8px;
+  padding: 7px 11px;
+}
+
+.form-panel-body .form-control:focus,
+.form-panel-body .form-select:focus {
+  border-color: var(--wp-accent);
+  box-shadow: 0 0 0 3px rgba(79,70,229,.12);
+}
+
+.form-panel-footer {
+  padding: 10px 16px 14px;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  background: var(--wp-surface);
+  border-top: 1px solid var(--wp-border);
+}
+
+/* Input area */
+.chat-input-wrap {
+  border-top: 1px solid var(--wp-border);
+  padding: 12px 16px 10px;
+  background: var(--wp-surface);
+  flex-shrink: 0;
+}
+
+.chat-input-inner {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  background: var(--wp-bg);
+  border: 1px solid var(--wp-border);
+  border-radius: 12px;
+  padding: 8px 8px 8px 12px;
+  transition: border-color .2s;
+}
+
+.chat-input-inner:focus-within {
+  border-color: var(--wp-accent);
+  box-shadow: 0 0 0 3px rgba(79,70,229,.1);
+}
+
+.chat-textarea {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--wp-text);
+  font-size: 13.5px;
+  resize: none;
+  outline: none;
+  max-height: 120px;
+  line-height: 1.6;
+  box-shadow: none !important;
+  overflow-y: auto;
+}
+
+.send-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: var(--wp-accent);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  flex-shrink: 0;
+  transition: opacity .15s, transform .1s;
+}
+
+.send-btn:hover { opacity: .88; transform: scale(1.04); }
+.send-btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+
+.service-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--wp-accent-bg);
+  color: var(--wp-accent);
+  border-radius: 20px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+  margin-right: 4px;
+}
+
+.chat-input-hint {
+  font-size: 11px;
+  color: var(--wp-muted);
+  margin-top: 6px;
+}
+
+/* Reports Modal */
+.report-type-btn {
+  padding: 14px 16px;
+  background: var(--wp-bg);
+  border: 1px solid var(--wp-border);
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: center;
+  color: var(--wp-text);
+  transition: all .18s;
+}
+
+.report-type-btn i {
+  font-size: 24px;
+  display: block;
+  margin-bottom: 6px;
+  color: var(--wp-accent);
+}
+
+.report-type-btn div { font-size: 13px; font-weight: 600; }
+.report-type-btn small { font-size: 11px; color: var(--wp-muted); }
+
+.report-type-btn:hover,
+.report-type-btn.active {
+  border-color: var(--wp-accent);
+  background: var(--wp-accent-bg);
+}
+
+.report-output-area {
+  background: var(--wp-bg);
+  border: 1px solid var(--wp-border);
+  border-radius: 12px;
+  min-height: 300px;
+  padding: 20px;
+}
+
+.report-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 260px;
+  color: var(--wp-muted);
+  text-align: center;
+}
+
+.report-body {
+  font-size: 13.5px;
+  line-height: 1.8;
+  color: var(--wp-text);
+}
+
+/* Deterministic metric cards — values come straight from computed data, never from the LLM */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.metric-card {
+  background: var(--wp-surface);
+  border: 1px solid var(--wp-border);
+  border-radius: 10px;
+  padding: 12px;
+  text-align: center;
+}
+.metric-value { font-size: 22px; font-weight: 700; color: var(--wp-text); line-height: 1.2; }
+.metric-label { font-size: 11px; color: var(--wp-muted); margin-top: 2px; text-transform: uppercase; letter-spacing: .4px; }
+.metric-sub   { font-size: 11px; color: var(--wp-muted); margin-top: 2px; }
+
+.priority-section { margin-top: 4px; }
+.priority-title { font-size: 12px; font-weight: 700; color: var(--wp-muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; }
+.priority-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; font-size: 12.5px; }
+.priority-label { width: 60px; flex-shrink: 0; color: var(--wp-text); }
+.priority-bar-track { flex: 1; height: 8px; border-radius: 4px; background: var(--wp-bg); overflow: hidden; }
+.priority-bar-fill  { height: 100%; border-radius: 4px; transition: width .3s; }
+.priority-count { width: 70px; flex-shrink: 0; text-align: right; color: var(--wp-muted); }
+
+/* Rendered markdown (AI narrative + chat replies) */
+.report-narrative h1, .report-narrative h2, .report-narrative h3,
+.ai-bubble h1, .ai-bubble h2, .ai-bubble h3 {
+  font-size: 14px; font-weight: 700; margin: 14px 0 6px; color: var(--wp-text);
+}
+.report-narrative p, .ai-bubble p { margin: 0 0 8px; }
+.report-narrative ul, .report-narrative ol, .ai-bubble ul, .ai-bubble ol {
+  margin: 0 0 8px; padding-left: 20px;
+}
+.report-narrative li, .ai-bubble li { margin-bottom: 4px; }
+.report-narrative table, .ai-bubble table {
+  width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 12.5px;
+}
+.report-narrative th, .report-narrative td, .ai-bubble th, .ai-bubble td {
+  border: 1px solid var(--wp-border); padding: 6px 8px; text-align: left;
+}
+.report-narrative th, .ai-bubble th { background: var(--wp-bg); font-weight: 600; }
+.report-narrative code, .ai-bubble code {
+  background: var(--wp-bg); padding: 2px 5px; border-radius: 4px; font-size: 12px;
+}
+.report-narrative strong, .ai-bubble strong { color: var(--wp-text); font-weight: 700; }
+
+.report-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 260px;
+  color: var(--wp-muted);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .ai-agent-layout { flex-direction: column; height: auto; }
+  .ai-panel-left   { width: 100%; min-width: auto; }
+  .ai-chat-area    { height: 60vh; }
+  .service-grid    { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .metrics-grid    { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* Fade in */
+@keyframes msgFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.msg-row { animation: msgFadeIn .25s ease; }
+</style>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────
+let messages        = [];
+let pendingAction   = null;
+let currentService  = null;
+let selectedReport  = 'productivity';
+
+const SERVICE_CONFIG = {
+  task_create: {
+    icon: 'bi-plus-circle-fill', color: '#a78bfa',
+    title: 'Create Task',
+    desc: 'Fill in the task details below',
+    systemHint: 'The user wants to create a new task.',
+    form: () => `
+      <div class="row g-3">
+        <div class="col-12">
+          <label class="form-label">Task Title <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="f_title" placeholder="e.g. Prepare Q3 report" required>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Priority</label>
+          <select class="form-select" id="f_priority">
+            <option value="high">🔴 High</option>
+            <option value="medium" selected>🟡 Medium</option>
+            <option value="low">🟢 Low</option>
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Due Date</label>
+          <input type="date" class="form-control" id="f_due_date">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Category</label>
+          <input type="text" class="form-control" id="f_category" placeholder="e.g. Marketing, Dev…">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Status</label>
+          <select class="form-select" id="f_status">
+            <option value="todo" selected>To Do</option>
+            <option value="in_progress">In Progress</option>
+          </select>
+        </div>
+        <div class="col-12">
+          <label class="form-label">Description</label>
+          <textarea class="form-control" id="f_description" rows="2" placeholder="Optional details…"></textarea>
+        </div>
+      </div>`,
+    buildMessage: () => {
+      const title = document.getElementById('f_title')?.value?.trim();
+      if (!title) { alert('Task title is required.'); return null; }
+      return `Create a task: "${title}", priority: ${document.getElementById('f_priority').value}, due: ${document.getElementById('f_due_date')?.value || 'not set'}, category: ${document.getElementById('f_category')?.value || 'none'}, status: ${document.getElementById('f_status').value}, description: ${document.getElementById('f_description')?.value || 'none'}`;
+    }
+  },
+  task_update: {
+    icon: 'bi-pencil-square', color: '#fbbf24',
+    title: 'Update Task',
+    desc: 'Specify which task and what to change',
+    systemHint: 'The user wants to update an existing task.',
+    form: () => `
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label">Task ID <span class="text-danger">*</span></label>
+          <input type="number" class="form-control" id="f_task_id" placeholder="e.g. 12">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">New Status</label>
+          <select class="form-select" id="f_new_status">
+            <option value="">— keep current —</option>
+            <option value="todo">To Do</option>
+            <option value="in_progress">In Progress</option>
+            <option value="done">Done ✓</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">New Priority</label>
+          <select class="form-select" id="f_new_priority">
+            <option value="">— keep current —</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+        </div>
+        <div class="col-12">
+          <label class="form-label">New Title (optional)</label>
+          <input type="text" class="form-control" id="f_new_title" placeholder="Leave blank to keep existing">
+        </div>
+      </div>`,
+    buildMessage: () => {
+      const id = document.getElementById('f_task_id')?.value;
+      if (!id) { alert('Task ID is required.'); return null; }
+      const status   = document.getElementById('f_new_status').value;
+      const priority = document.getElementById('f_new_priority').value;
+      const title    = document.getElementById('f_new_title')?.value;
+      let changes = [];
+      if (status)   changes.push(`status to "${status}"`);
+      if (priority) changes.push(`priority to "${priority}"`);
+      if (title)    changes.push(`title to "${title}"`);
+      if (!changes.length) changes.push('(no changes specified)');
+      return `Update task ID ${id}: change ${changes.join(', ')}`;
+    }
+  },
+  task_delete: {
+    icon: 'bi-trash3', color: '#f87171',
+    title: 'Delete Task',
+    desc: 'Confirm the task you want to remove',
+    systemHint: 'The user wants to delete a task. Ask for confirmation.',
+    form: () => `
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label">Task ID <span class="text-danger">*</span></label>
+          <input type="number" class="form-control" id="f_del_id" placeholder="e.g. 5">
+        </div>
+        <div class="col-12">
+          <div class="alert alert-warning py-2 mb-0" style="font-size:12px">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            The AI will ask for your confirmation before deleting.
+          </div>
+        </div>
+      </div>`,
+    buildMessage: () => {
+      const id = document.getElementById('f_del_id')?.value;
+      if (!id) { alert('Task ID is required.'); return null; }
+      return `I want to delete task ID ${id}. Please confirm the task details and ask me to confirm before proceeding.`;
+    }
+  },
+  plan_day: {
+    icon: 'bi-calendar3-week-fill', color: '#22d3ee',
+    title: 'Plan My Day',
+    desc: 'Set your focus for the AI to schedule',
+    systemHint: 'The user wants to create a daily plan.',
+    form: () => {
+      const today = new Date().toISOString().split('T')[0];
+      return `
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Date to Plan</label>
+            <input type="date" class="form-control" id="f_plan_date" value="${today}">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Work Hours</label>
+            <select class="form-select" id="f_work_hours">
+              <option value="9am-5pm">9 AM – 5 PM</option>
+              <option value="8am-4pm">8 AM – 4 PM</option>
+              <option value="10am-6pm">10 AM – 6 PM</option>
+              <option value="flexible">Flexible</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Focus Areas (optional)</label>
+            <input type="text" class="form-control" id="f_focus" placeholder="e.g. Only development tasks, skip meetings">
+          </div>
+        </div>`;
+    },
+    buildMessage: () => {
+      const date  = document.getElementById('f_plan_date')?.value || 'today';
+      const hours = document.getElementById('f_work_hours')?.value || '9am-5pm';
+      const focus = document.getElementById('f_focus')?.value || '';
+      return `Create a detailed daily plan for ${date}, work hours: ${hours}. ${focus ? 'Focus: ' + focus + '.' : ''} Use my pending tasks and assign time blocks.`;
+    }
+  },
+  doc_create: {
+    icon: 'bi-file-earmark-plus-fill', color: '#34d399',
+    title: 'Create Document',
+    desc: 'Select type and provide context',
+    systemHint: 'The user wants to create a new document.',
+    form: () => `
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label">Document Type <span class="text-danger">*</span></label>
+          <select class="form-select" id="f_doc_type">
+            <option value="note">📝 Note</option>
+            <option value="report">📊 Report</option>
+            <option value="meeting">🤝 Meeting Notes</option>
+            <option value="decision">✅ Decision Record</option>
+            <option value="policy">📋 Policy</option>
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Document Title <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="f_doc_title" placeholder="e.g. Q3 Marketing Review">
+        </div>
+        <div class="col-12">
+          <label class="form-label">Context / Content Instructions</label>
+          <textarea class="form-control" id="f_doc_context" rows="3" placeholder="Describe what the document should cover, key points to include…"></textarea>
+        </div>
+      </div>`,
+    buildMessage: () => {
+      const type    = document.getElementById('f_doc_type')?.value;
+      const title   = document.getElementById('f_doc_title')?.value?.trim();
+      const context = document.getElementById('f_doc_context')?.value?.trim();
+      if (!title) { alert('Document title is required.'); return null; }
+      return `Create a ${type} document titled "${title}". ${context ? 'Context: ' + context : 'Generate appropriate professional content for this document.'}`;
+    }
+  },
+  generate_report: {
+    icon: 'bi-bar-chart-line-fill', color: '#818cf8',
+    title: 'Generate Report',
+    desc: 'Choose what kind of report you need',
+    systemHint: 'Generate a comprehensive AI report based on the user\'s data.',
+    form: () => `
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label">Report Type</label>
+          <select class="form-select" id="f_report_type">
+            <option value="productivity">Productivity Analysis</option>
+            <option value="status">Weekly Status</option>
+            <option value="performance">Performance Review</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Period</label>
+          <select class="form-select" id="f_report_period">
+            <option value="today">Today</option>
+            <option value="this week" selected>This Week</option>
+            <option value="this month">This Month</option>
+            <option value="all time">All Time</option>
+          </select>
+        </div>
+        <div class="col-12">
+          <label class="form-label">Custom Requirements</label>
+          <input type="text" class="form-control" id="f_report_custom" placeholder="e.g. Focus on overdue tasks, include recommendations…">
+        </div>
+      </div>`,
+    buildMessage: () => {
+      const type   = document.getElementById('f_report_type')?.value;
+      const period = document.getElementById('f_report_period')?.value;
+      const custom = document.getElementById('f_report_custom')?.value;
+      return `Generate a detailed ${type} report for ${period}. ${custom || 'Include key metrics, insights, trends and actionable recommendations. Use my actual task and document data.'}`;
+    }
+  },
+  task_summary: {
+    icon: 'bi-list-stars', color: '#fb923c',
+    title: 'Summarize Tasks',
+    desc: 'AI analyzes your workload',
+    systemHint: 'Summarize the user\'s tasks and identify top priorities.',
+    form: () => `
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label">Filter by Status</label>
+          <select class="form-select" id="f_sum_status">
+            <option value="all">All Tasks</option>
+            <option value="active" selected>Active Only</option>
+            <option value="overdue">Overdue</option>
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Focus</label>
+          <select class="form-select" id="f_sum_focus">
+            <option value="priorities">Top Priorities</option>
+            <option value="due_soon">Due Soon</option>
+            <option value="overview">Full Overview</option>
+          </select>
+        </div>
+      </div>`,
+    buildMessage: () => {
+      const status = document.getElementById('f_sum_status')?.value;
+      const focus  = document.getElementById('f_sum_focus')?.value;
+      return `Summarize my ${status === 'all' ? '' : status + ' '}tasks. Focus on ${focus}. Give me clear action items and priorities.`;
+    }
+  },
+  system_explain: {
+    icon: 'bi-info-circle-fill', color: '#a78bfa',
+    title: 'Explain System',
+    desc: 'Learn how WorkPro works',
+    systemHint: 'Explain the WorkPro system features to the user in a clear, helpful way.',
+    form: () => `
+      <div class="row g-3">
+        <div class="col-12">
+          <label class="form-label">What do you want to know about?</label>
+          <select class="form-select" id="f_explain_topic">
+            <option value="overview">WorkPro Overview</option>
+            <option value="tasks">Task Management</option>
+            <option value="planner">Daily Planner</option>
+            <option value="documents">Documents</option>
+            <option value="ai">AI Agent Features</option>
+            <option value="subscription">Plans & Subscription</option>
+            <option value="admin">Admin Settings</option>
+          </select>
+        </div>
+      </div>`,
+    buildMessage: () => {
+      const topic = document.getElementById('f_explain_topic')?.value;
+      return `Explain the "${topic}" feature/section of WorkPro in detail. I'm a new user. Tell me what it does, how to use it, and best practices.`;
+    }
+  },
+  free_chat: {
+    icon: 'bi-chat-dots-fill', color: '#60a5fa',
+    title: 'Free Chat',
+    desc: 'Ask anything freely',
+    systemHint: 'The user wants a free-form conversation.',
+    form: null,
+    buildMessage: null
+  }
+};
+
+// ── Service Selection ─────────────────────────────────────────────────
+function selectService(serviceKey) {
+  currentService = serviceKey;
+  const cfg = SERVICE_CONFIG[serviceKey];
+
+  // Update sidebar active state
+  document.querySelectorAll('.service-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.querySelector(`[data-service="${serviceKey}"]`);
+  if (btn) btn.classList.add('active');
+
+  // Update banner
+  const banner = document.getElementById('activeBanner');
+  document.getElementById('bannerIcon').innerHTML = `<i class="bi ${cfg.icon}"></i>`;
+  document.getElementById('bannerTitle').textContent = cfg.title;
+  document.getElementById('bannerDesc').textContent = cfg.desc;
+  banner.style.display = 'flex';
+
+  // Update chip
+  const chip = document.getElementById('serviceChip');
+  document.getElementById('serviceChipLabel').textContent = cfg.title;
+  chip.style.display = 'inline-flex';
+
+  // Show form if available
+  if (cfg.form) {
+    const panel = document.getElementById('formPanel');
+    document.getElementById('formTitle').innerHTML = `<i class="bi ${cfg.icon}" style="color:${cfg.color}"></i> ${cfg.title}`;
+    document.getElementById('formBody').innerHTML = cfg.form();
+    panel.style.display = 'block';
+    document.getElementById('chatInput').placeholder = 'Form above is ready — fill in details and click Submit';
+  } else {
+    document.getElementById('formPanel').style.display = 'none';
+    document.getElementById('chatInput').placeholder = `Chat freely — type your message…`;
+    document.getElementById('chatInput').focus();
+  }
+}
+
+function clearService() {
+  currentService = null;
+  document.querySelectorAll('.service-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('activeBanner').style.display = 'none';
+  document.getElementById('serviceChip').style.display = 'none';
+  document.getElementById('formPanel').style.display = 'none';
+  document.getElementById('chatInput').placeholder = 'Select a service above, or type your message…';
+}
+
+function closeFormPanel() {
+  document.getElementById('formPanel').style.display = 'none';
+}
+
+// ── Form Submit ───────────────────────────────────────────────────────
+function submitForm() {
+  if (!currentService) return;
+  const cfg = SERVICE_CONFIG[currentService];
+  if (!cfg.buildMessage) return;
+  const msg = cfg.buildMessage();
+  if (!msg) return;
+  document.getElementById('formPanel').style.display = 'none';
+  sendMessageText(msg);
+}
+
+// ── Chat Engine ───────────────────────────────────────────────────────
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+
+function autoResize(ta) {
+  ta.style.height = 'auto';
+  ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
+}
+
+function sendMessage() {
+  const input = document.getElementById('chatInput');
+  const text  = input.value.trim();
+  if (text) { sendMessageText(text); input.value = ''; autoResize(input); }
+}
+
+async function sendMessageText(text) {
+  addMessage('user', text);
+  const svcHint = currentService && SERVICE_CONFIG[currentService]
+    ? `[Service: ${SERVICE_CONFIG[currentService].title}] ` : '';
+  messages.push({ role: 'user', content: svcHint + text });
+
+  const btn = document.getElementById('sendBtn');
+  btn.disabled = true;
+  addTyping();
+
+  try {
+    const r = await fetch('/ai/message', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+      body: JSON.stringify({ messages, service: currentService })
+    });
+    const d = await r.json();
+    removeTyping();
+
+    if (d.limit_reached) {
+      addMessage('ai', d.reply || 'Message limit reached.', { upgrade: true });
+    } else {
+      if (d.pending_action) pendingAction = d.pending_action;
+      addMessage('ai', d.reply || '', d);
+      messages.push({ role: 'assistant', content: d.reply || '' });
+    }
+  } catch(e) {
+    removeTyping();
+    addMessage('ai', '⚠️ Network error. Please check your connection and try again.');
+  }
+
+  btn.disabled = false;
+}
+
+// ── Message Rendering ─────────────────────────────────────────────────
+function addMessage(role, content, meta={}) {
+  const list = document.getElementById('messageList');
+  const isAI = role === 'ai';
+  const wrap = document.createElement('div');
+  wrap.className = `msg-row ${isAI ? 'ai' : 'user'}`;
+
+  const avatar = document.createElement('div');
+  avatar.className = `msg-avatar ${isAI ? 'ai-avatar' : 'user-avatar'}`;
+  avatar.innerHTML = isAI ? '<i class="bi bi-robot"></i>' : '{{ current_user.initials }}';
+
+  const contentWrap = document.createElement('div');
+  contentWrap.className = 'msg-content-wrap';
+
+  const bubble = document.createElement('div');
+  bubble.className = `msg-bubble ${isAI ? 'ai-bubble' : 'user-bubble'}`;
+  if (isAI) {
+    bubble.innerHTML = renderMarkdown(content);
+  } else {
+    bubble.textContent = content;
+  }
+
+  // Action result
+  if (meta.action_result) {
+    const ar = meta.action_result;
+    const chip = document.createElement('div');
+    chip.className = `action-result ${ar.success ? 'success' : 'error'}`;
+    chip.innerHTML = `<i class="bi bi-${ar.success ? 'check-circle-fill' : 'x-circle-fill'} me-1"></i>${ar.message}`;
+    bubble.appendChild(chip);
+  }
+
+  // Confirm required
+  if (meta.confirm_required) {
+    const row = document.createElement('div');
+    row.className = 'confirm-row';
+    row.innerHTML = `
+      <span style="font-size:12px;color:var(--wp-muted)">${meta.confirm_msg || 'Confirm this action?'}</span>
+      <button class="btn btn-sm btn-danger" style="font-size:12px;padding:3px 12px" onclick="confirmAction()"><i class="bi bi-check me-1"></i>Yes, confirm</button>
+      <button class="btn btn-sm btn-wp-ghost" style="font-size:12px" onclick="cancelAction()">Cancel</button>`;
+    bubble.appendChild(row);
+  }
+
+  // Upgrade CTA
+  if (meta.upgrade) {
+    const up = document.createElement('div');
+    up.style.marginTop = '10px';
+    up.innerHTML = `<a href="/subscription" class="btn btn-wp-primary btn-sm"><i class="bi bi-stars me-1"></i>Upgrade to Pro — Full Access</a>`;
+    bubble.appendChild(up);
+  }
+
+  contentWrap.appendChild(bubble);
+  const time = document.createElement('div');
+  time.className = 'msg-time';
+  time.textContent = isAI ? 'WorkPro AI Agent · just now' : 'You · just now';
+  if (!isAI) time.style.textAlign = 'right';
+  contentWrap.appendChild(time);
+
+  wrap.appendChild(avatar);
+  wrap.appendChild(contentWrap);
+  list.appendChild(wrap);
+
+  document.getElementById('chatMessages').scrollTop = 99999;
+}
+
+function addTyping() {
+  const list = document.getElementById('messageList');
+  const el   = document.createElement('div');
+  el.id = 'typingIndicator';
+  el.className = 'msg-row ai';
+  el.innerHTML = `
+    <div class="msg-avatar ai-avatar"><i class="bi bi-robot"></i></div>
+    <div class="msg-content-wrap">
+      <div class="msg-bubble ai-bubble" style="padding:14px 16px">
+        <div class="typing-bubble">
+          <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
+        </div>
+      </div>
+    </div>`;
+  list.appendChild(el);
+  document.getElementById('chatMessages').scrollTop = 99999;
+}
+
+function removeTyping() {
+  document.getElementById('typingIndicator')?.remove();
+}
+
+function clearChat() {
+  messages = [];
+  pendingAction = null;
+  clearService();
+  document.getElementById('messageList').innerHTML = '';
+}
+
+// ── Confirm / Cancel Action ───────────────────────────────────────────
+async function confirmAction() {
+  if (!pendingAction) return;
+  const r = await fetch('/ai/execute-action', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+    body: JSON.stringify({ action_data: pendingAction })
+  });
+  const d = await r.json();
+  addMessage('ai', d.success ? d.message : 'Failed: ' + d.message, { action_result: d });
+  pendingAction = null;
+}
+
+function cancelAction() {
+  pendingAction = null;
+  addMessage('ai', 'Action cancelled. Let me know if you\'d like to do something else.');
+}
+
+// ── Reports ───────────────────────────────────────────────────────────
+function showReports() {
+  new bootstrap.Modal(document.getElementById('reportsModal')).show();
+}
+
+function selectReport(btn, type) {
+  document.querySelectorAll('.report-type-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  selectedReport = type;
+}
+
+function renderMetricsHtml(m) {
+  const statCard = (label, value, sub, color) => `
+    <div class="metric-card">
+      <div class="metric-value"${color ? ` style="color:${color}"` : ''}>${value}</div>
+      <div class="metric-label">${label}</div>
+      ${sub ? `<div class="metric-sub">${sub}</div>` : ''}
+    </div>`;
+
+  const cards = [
+    statCard('Total Tasks', m.total_tasks),
+    statCard('Completed', m.completed_tasks, `${m.completed_pct}%`, '#22c55e'),
+    statCard('In Progress', m.in_progress, `${m.in_progress_pct}%`, '#3b82f6'),
+    statCard('Overdue', m.overdue_tasks, `${m.overdue_pct}%`, m.overdue_tasks > 0 ? '#ef4444' : null),
+    statCard('Due Today', m.due_today, null, m.due_today > 0 ? '#f59e0b' : null),
+    statCard('Next 7 Days', m.upcoming_tasks),
+  ].join('');
+
+  const priorityRows = ['high','medium','low'].map(p => {
+    const count = (m.priority_counts && m.priority_counts[p]) || 0;
+    const pct   = (m.priority_pct && m.priority_pct[p]) || 0;
+    const color = p === 'high' ? '#ef4444' : p === 'medium' ? '#f59e0b' : '#22c55e';
+    return `
+      <div class="priority-row">
+        <span class="priority-label">${p.charAt(0).toUpperCase()+p.slice(1)}</span>
+        <div class="priority-bar-track"><div class="priority-bar-fill" style="width:${pct}%;background:${color}"></div></div>
+        <span class="priority-count">${count} (${pct}%)</span>
+      </div>`;
+  }).join('');
+
+  return `
+    <div class="metrics-grid">${cards}</div>
+    <div class="priority-section">
+      <div class="priority-title">Priority Distribution</div>
+      ${priorityRows}
+    </div>`;
+}
+
+async function generateReport() {
+  const content = document.getElementById('reportContent');
+  content.innerHTML = `<div class="report-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div><span>AI is generating your ${selectedReport} report…</span></div>`;
+  document.getElementById('printReportBtn').style.display = 'none';
+
+  try {
+    const r = await fetch('/ai/report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+      body: JSON.stringify({ report_type: selectedReport })
+    });
+    const d = await r.json();
+
+    if (d.error) {
+      content.innerHTML = `<div class="report-placeholder"><i class="bi bi-exclamation-triangle" style="font-size:48px;opacity:.3;color:#ef4444"></i><p class="mt-3" style="color:#ef4444">${escapeHtml(d.error)}</p></div>`;
+      return;
+    }
+
+    const metricsHtml   = renderMetricsHtml(d.metrics);
+    const narrativeHtml = renderMarkdown(d.narrative || 'No narrative available.');
+    content.innerHTML = `
+      <div class="report-body">
+        ${metricsHtml}
+        <hr style="border-color:var(--wp-border);margin:18px 0">
+        <div class="report-narrative">${narrativeHtml}</div>
+      </div>`;
+    document.getElementById('printReportBtn').style.display = 'inline-flex';
+  } catch(e) {
+    content.innerHTML = `<div class="report-placeholder"><i class="bi bi-exclamation-triangle" style="font-size:48px;opacity:.3;color:#ef4444"></i><p class="mt-3" style="color:#ef4444">Failed to generate report. Please try again.</p></div>`;
+  }
+}
+
+function printReport() {
+  const content = document.getElementById('reportContent').innerHTML;
+  const win = window.open('', '', 'width=800,height=600');
+  win.document.write(`
+    <html><head><title>WorkPro Report</title>
+    <style>
+      body{font-family:Inter,sans-serif;padding:40px;color:#1a202c;line-height:1.7;font-size:14px}
+      h1{color:#4f46e5}
+      .metrics-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px}
+      .metric-card{border:1px solid #e2e8f0;border-radius:10px;padding:12px;text-align:center}
+      .metric-value{font-size:22px;font-weight:700}
+      .metric-label{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.4px}
+      .metric-sub{font-size:11px;color:#64748b}
+      .priority-row{display:flex;align-items:center;gap:10px;margin-bottom:6px;font-size:12.5px}
+      .priority-label{width:60px}
+      .priority-bar-track{flex:1;height:8px;border-radius:4px;background:#f1f5f9;overflow:hidden}
+      .priority-bar-fill{height:100%;border-radius:4px}
+      .priority-count{width:70px;text-align:right;color:#64748b}
+      table{width:100%;border-collapse:collapse;margin:8px 0;font-size:12.5px}
+      th,td{border:1px solid #e2e8f0;padding:6px 8px;text-align:left}
+      .report-loading,.report-placeholder{display:none}
+    </style>
+    </head><body>
+    <h1>WorkPro Report — ${new Date().toLocaleDateString()}</h1>
+    ${content}
+    </body></html>`);
+  win.document.close();
+  win.print();
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// AI replies arrive as markdown (headers, bold, tables, lists). Render them
+// properly instead of dumping raw "**Total Tasks:**" text at the user.
+function renderMarkdown(text) {
+  try {
+    const html = marked.parse(text, { breaks: true });
+    return DOMPurify.sanitize(html);
+  } catch (e) {
+    // marked/DOMPurify failed to load (e.g. offline) — fall back to plain text
+    return escapeHtml(text).replace(/\n/g, '<br>');
+  }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,328 @@
+{% extends "base.html" %}
+{% block title %}Documentation{% endblock %}
+{% block page_title %}Documentation{% endblock %}
+{% block page_sub %}Notes, reports, meetings and decisions{% endblock %}
+
+{% block topbar_actions %}
+<button class="btn-doc-primary" data-bs-toggle="modal" data-bs-target="#docModal">
+  <i class="bi bi-plus-lg"></i> New Document
+</button>
+{% endblock %}
+
+{% block content %}
+<style>
+  :root {
+    --doc-accent:   #7c6aff;
+    --doc-accent2:  #27c98a;
+    --doc-warn:     #fbbf24;
+    --doc-danger:   #f87171;
+    --doc-surface:  var(--wp-surface, #1a1d2e);
+    --doc-card:     var(--wp-card, #20243a);
+    --doc-border:   var(--wp-border, rgba(255,255,255,.08));
+    --doc-text:     var(--wp-text, #e2e8f0);
+    --doc-muted:    var(--wp-muted, #64748b);
+    --doc-radius:   12px;
+    --doc-radius-sm:8px;
+  }
+
+  /* ── Buttons ── */
+  .btn-doc-primary {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--doc-accent); color: #fff;
+    border: none; border-radius: var(--doc-radius-sm);
+    padding: 9px 18px; font-size: 13px; font-weight: 600;
+    cursor: pointer;
+    transition: background .15s, transform .1s, box-shadow .15s;
+  }
+  .btn-doc-primary:hover { background: #6b59ee; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(124,106,255,.35); }
+  .btn-doc-ghost {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: transparent; color: var(--doc-muted);
+    border: 1px solid var(--doc-border); border-radius: var(--doc-radius-sm);
+    padding: 7px 14px; font-size: 12px; font-weight: 500;
+    cursor: pointer; text-decoration: none;
+    transition: border-color .15s, color .15s, background .15s;
+  }
+  .btn-doc-ghost:hover,
+  .btn-doc-ghost.active {
+    border-color: var(--doc-accent);
+    color: var(--doc-text);
+    background: rgba(124,106,255,.08);
+  }
+  .btn-doc-ghost.active { color: var(--doc-accent); font-weight: 600; }
+
+  /* ── Filter bar ── */
+  .doc-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .doc-search-wrap {
+    display: flex;
+    align-items: center;
+    background: var(--doc-card);
+    border: 1px solid var(--doc-border);
+    border-radius: var(--doc-radius-sm);
+    overflow: hidden;
+    transition: border-color .15s;
+  }
+  .doc-search-wrap:focus-within { border-color: var(--doc-accent); }
+  .doc-search-icon {
+    padding: 0 11px;
+    color: var(--doc-muted); font-size: 13px;
+    border-right: 1px solid var(--doc-border);
+    height: 36px; display: flex; align-items: center;
+  }
+  .doc-search-wrap input {
+    background: transparent; border: none; outline: none;
+    padding: 7px 12px; font-size: 12.5px; color: var(--doc-text);
+    width: 220px; height: 36px;
+  }
+
+  /* ── Doc type color map ── */
+  .doc-type-note     { --dt-color: #a78bfa; --dt-bg: rgba(124,106,255,.12); }
+  .doc-type-report   { --dt-color: #60a5fa; --dt-bg: rgba(79,156,249,.12); }
+  .doc-type-meeting  { --dt-color: #34d399; --dt-bg: rgba(39,201,138,.15); }
+  .doc-type-decision { --dt-color: #fbbf24; --dt-bg: rgba(251,191,36,.15); }
+  .doc-type-policy   { --dt-color: #f87171; --dt-bg: rgba(248,113,113,.15); }
+
+  /* ── Doc cards ── */
+  .doc-card {
+    display: flex; flex-direction: column;
+    background: var(--doc-card);
+    border: 1px solid var(--doc-border);
+    border-radius: var(--doc-radius);
+    padding: 18px;
+    height: 100%;
+    text-decoration: none;
+    color: var(--doc-text);
+    transition: border-color .2s, transform .15s, box-shadow .15s;
+  }
+  .doc-card:hover {
+    border-color: var(--doc-accent);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,.12);
+    color: var(--doc-text);
+  }
+
+  .doc-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .doc-type-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 20px;
+    font-size: 11px; font-weight: 600;
+    background: var(--dt-bg);
+    color: var(--dt-color);
+  }
+  .doc-type-chip i { font-size: 10px; }
+
+  .doc-shared-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 9px; border-radius: 20px;
+    font-size: 11px; font-weight: 600;
+    background: rgba(39,201,138,.12); color: #27c98a;
+  }
+
+  .doc-title {
+    font-size: 14px; font-weight: 700;
+    color: var(--doc-text);
+    line-height: 1.35;
+    margin-bottom: 6px;
+  }
+
+  .doc-preview {
+    font-size: 12px;
+    color: var(--doc-muted);
+    line-height: 1.6;
+    flex: 1;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+  }
+
+  .doc-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--doc-border);
+  }
+  .doc-tag { font-size: 11px; color: var(--doc-muted); display: flex; align-items: center; gap: 4px; }
+  .doc-date { font-size: 11px; color: var(--doc-muted); font-variant-numeric: tabular-nums; }
+
+  /* ── Empty state ── */
+  .doc-empty {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 72px 24px;
+    color: var(--doc-muted); gap: 10px; text-align: center;
+    background: var(--doc-card);
+    border: 1px solid var(--doc-border);
+    border-radius: var(--doc-radius);
+  }
+  .doc-empty-icon  { font-size: 2.4rem; opacity: .3; }
+  .doc-empty-title { font-size: 14px; font-weight: 600; color: var(--doc-text); }
+  .doc-empty-sub   { font-size: 12.5px; }
+
+  /* ── Modal ── */
+  .doc-modal-content {
+    background: var(--doc-card) !important;
+    border: 1px solid var(--doc-border) !important;
+    border-radius: var(--doc-radius) !important;
+  }
+  .doc-modal-header {
+    border-bottom: 1px solid var(--doc-border) !important;
+    padding: 18px 22px !important;
+  }
+  .doc-modal-title { font-size: 14px !important; font-weight: 700 !important; color: var(--doc-text) !important; }
+  .doc-modal-body  { padding: 22px !important; }
+  .doc-modal-footer{ border-top: 1px solid var(--doc-border) !important; padding: 14px 22px !important; gap: 8px !important; }
+
+  .doc-label {
+    display: block; font-size: 11px; font-weight: 600;
+    color: var(--doc-muted); letter-spacing: .3px; margin-bottom: 5px;
+  }
+  .doc-input, .doc-select, .doc-textarea {
+    width: 100%;
+    background: var(--doc-surface); border: 1px solid var(--doc-border);
+    border-radius: var(--doc-radius-sm);
+    padding: 9px 12px; font-size: 13px; color: var(--doc-text);
+    outline: none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .doc-input:focus, .doc-select:focus, .doc-textarea:focus {
+    border-color: var(--doc-accent);
+    box-shadow: 0 0 0 3px rgba(124,106,255,.12);
+  }
+  .doc-textarea { resize: vertical; }
+  .doc-check-row {
+    display: flex; align-items: center; gap: 8px;
+    margin-top: 4px;
+  }
+  .doc-check-row input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--doc-accent); cursor: pointer; }
+  .doc-check-row label { font-size: 12.5px; color: var(--doc-text); cursor: pointer; }
+</style>
+
+<!-- ── Filter bar ── -->
+<div class="doc-filter-bar">
+  <div class="doc-search-wrap">
+    <div class="doc-search-icon"><i class="bi bi-search"></i></div>
+    <input type="text" placeholder="Search documents…"
+           value="{{ filters.q or '' }}"
+           onchange="location.href='?q='+this.value+'&doc_type={{ filters.doc_type or '' }}'"/>
+  </div>
+
+  {% for t, label, icon in [
+    ('',         'All',       'bi-grid'),
+    ('note',     'Notes',     'bi-sticky'),
+    ('report',   'Reports',   'bi-bar-chart-line'),
+    ('meeting',  'Meetings',  'bi-people'),
+    ('decision', 'Decisions', 'bi-check2-circle'),
+    ('policy',   'Policies',  'bi-shield-check')
+  ] %}
+  <a href="?doc_type={{ t }}&q={{ filters.q or '' }}"
+     class="btn-doc-ghost {% if filters.doc_type == t or (not filters.doc_type and not t) %}active{% endif %}">
+    <i class="bi {{ icon }}"></i> {{ label }}
+  </a>
+  {% endfor %}
+</div>
+
+<!-- ── Doc grid ── -->
+{% if docs %}
+<div class="row g-3">
+  {% for d in docs %}
+  {% set type_class = 'doc-type-' + d.doc_type %}
+  {% set type_icons = {'note':'bi-sticky','report':'bi-bar-chart-line','meeting':'bi-people','decision':'bi-check2-circle','policy':'bi-shield-check'} %}
+  <div class="col-md-6 col-lg-4">
+    <a href="{{ url_for('docs.view', doc_id=d.id) }}" class="doc-card {{ type_class }}">
+      <div class="doc-card-header">
+        <span class="doc-type-chip">
+          <i class="bi {{ type_icons.get(d.doc_type, 'bi-file-text') }}"></i>
+          {{ d.doc_type|title }}
+        </span>
+        {% if d.is_shared %}
+        <span class="doc-shared-chip"><i class="bi bi-people-fill"></i> Shared</span>
+        {% endif %}
+      </div>
+      <div class="doc-title">{{ d.title }}</div>
+      <div class="doc-preview">{{ d.content or 'No content yet.' }}</div>
+      <div class="doc-card-footer">
+        <div class="doc-tag">
+          {% if d.tags %}<i class="bi bi-tag"></i>{{ d.tags }}{% endif %}
+        </div>
+        <div class="doc-date">{{ d.updated_at.strftime('%d %b') }}</div>
+      </div>
+    </a>
+  </div>
+  {% endfor %}
+</div>
+
+{% else %}
+<div class="doc-empty">
+  <div class="doc-empty-icon"><i class="bi bi-file-earmark-text"></i></div>
+  <div class="doc-empty-title">No documents yet</div>
+  <div class="doc-empty-sub">Create your first document to get started.</div>
+  <button class="btn-doc-ghost mt-2" data-bs-toggle="modal" data-bs-target="#docModal">
+    <i class="bi bi-plus-lg"></i> New Document
+  </button>
+</div>
+{% endif %}
+
+<!-- ── Create Modal ── -->
+<div class="modal fade" id="docModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content doc-modal-content">
+      <div class="modal-header doc-modal-header">
+        <h5 class="modal-title doc-modal-title"><i class="bi bi-file-earmark-plus me-2"></i>New Document</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="{{ url_for('docs.create') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <div class="modal-body doc-modal-body">
+          <div class="mb-3">
+            <label class="doc-label">Title *</label>
+            <input type="text" name="title" class="doc-input" required placeholder="Document title"/>
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-md-6">
+              <label class="doc-label">Type</label>
+              <select name="doc_type" class="doc-select">
+                <option value="note">Note</option>
+                <option value="report">Report</option>
+                <option value="meeting">Meeting Notes</option>
+                <option value="decision">Decision</option>
+                <option value="policy">Policy</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="doc-label">Tags</label>
+              <input type="text" name="tags" class="doc-input" placeholder="tag1, tag2…"/>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="doc-label">Content</label>
+            <textarea name="content" class="doc-textarea" rows="10" placeholder="Write your documentation here…"></textarea>
+          </div>
+          <div class="doc-check-row">
+            <input type="checkbox" name="is_shared" id="isShared"/>
+            <label for="isShared">Share with all team members</label>
+          </div>
+        </div>
+        <div class="modal-footer doc-modal-footer">
+          <button type="button" class="btn-doc-ghost" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn-doc-primary"><i class="bi bi-check2"></i> Save Document</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

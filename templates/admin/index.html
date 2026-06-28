@@ -1,0 +1,763 @@
+{% extends "base.html" %}
+{% block title %}Admin Panel{% endblock %}
+{% block page_title %}Admin Panel{% endblock %}
+{% block page_sub %}System-wide settings, roles and permissions{% endblock %}
+{% block content %}
+
+<style>
+  /* ── Design tokens ── */
+  :root {
+    --adm-accent:   #7c6aff;
+    --adm-accent2:  #27c98a;
+    --adm-warn:     #f5a623;
+    --adm-info:     #4f9cf9;
+    --adm-danger:   #f87171;
+    --adm-surface:  var(--wp-surface, #1a1d2e);
+    --adm-card:     var(--wp-card, #20243a);
+    --adm-border:   var(--wp-border, rgba(255,255,255,.08));
+    --adm-text:     var(--wp-text, #e2e8f0);
+    --adm-muted:    var(--wp-muted, #64748b);
+    --adm-radius:   12px;
+    --adm-radius-sm:8px;
+  }
+
+  /* ── Section label ── */
+  .section-eyebrow {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--adm-muted);
+    border-bottom: 1px solid var(--adm-border);
+    padding-bottom: 8px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* ── Stat cards ── */
+  .adm-stat {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--adm-card);
+    border: 1px solid var(--adm-border);
+    border-radius: var(--adm-radius);
+    padding: 18px 20px;
+    transition: border-color .2s, transform .15s;
+  }
+  .adm-stat:hover { border-color: var(--adm-accent); transform: translateY(-1px); }
+  .adm-stat-icon {
+    width: 44px; height: 44px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .adm-stat-value {
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--adm-text);
+  }
+  .adm-stat-label {
+    font-size: 11px;
+    color: var(--adm-muted);
+    margin-top: 3px;
+    letter-spacing: .3px;
+  }
+
+  /* ── Cards ── */
+  .adm-card {
+    background: var(--adm-card);
+    border: 1px solid var(--adm-border);
+    border-radius: var(--adm-radius);
+    padding: 24px;
+  }
+  .adm-card-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--adm-text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 18px;
+  }
+  .adm-card-title .title-icon {
+    width: 28px; height: 28px;
+    border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+  }
+
+  /* ── Role accordion ── */
+  .role-row {
+    border: 1px solid var(--adm-border);
+    border-radius: var(--adm-radius-sm);
+    margin-bottom: 6px;
+    overflow: hidden;
+    transition: border-color .2s;
+  }
+  .role-row:has(.accordion-collapse.show),
+  .role-row:hover { border-color: rgba(124,106,255,.4); }
+
+  .role-toggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    color: var(--adm-text);
+    font-size: 13px;
+  }
+  .role-toggle:focus { outline: 2px solid var(--adm-accent); outline-offset: -2px; border-radius: var(--adm-radius-sm); }
+  .role-toggle .chevron {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--adm-muted);
+    transition: transform .2s;
+  }
+  .role-toggle[aria-expanded="true"] .chevron { transform: rotate(90deg); }
+
+  .role-body { padding: 4px 16px 16px; }
+
+  /* ── Perm grid ── */
+  .perm-module-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .9px;
+    text-transform: uppercase;
+    color: var(--adm-muted);
+    margin-bottom: 6px;
+    margin-top: 10px;
+  }
+  .perm-checks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+  }
+  .perm-check-item { display: flex; align-items: center; gap: 5px; }
+  .perm-check-item input[type="checkbox"] {
+    width: 14px; height: 14px;
+    accent-color: var(--adm-accent);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .perm-check-item label { font-size: 12px; color: var(--adm-text); cursor: pointer; }
+
+  /* ── Form controls ── */
+  .adm-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--adm-muted);
+    letter-spacing: .3px;
+    margin-bottom: 5px;
+    display: block;
+  }
+  .adm-input, .adm-select, .adm-textarea {
+    width: 100%;
+    background: var(--adm-surface);
+    border: 1px solid var(--adm-border);
+    border-radius: var(--adm-radius-sm);
+    padding: 9px 12px;
+    font-size: 13px;
+    color: var(--adm-text);
+    transition: border-color .15s, box-shadow .15s;
+    outline: none;
+  }
+  .adm-input:focus, .adm-select:focus, .adm-textarea:focus {
+    border-color: var(--adm-accent);
+    box-shadow: 0 0 0 3px rgba(124,106,255,.12);
+  }
+  .adm-input-hint {
+    font-size: 11px;
+    color: var(--adm-muted);
+    margin-top: 4px;
+  }
+
+  /* ── Buttons ── */
+  .btn-adm-primary {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--adm-accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--adm-radius-sm);
+    padding: 9px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s, transform .1s, box-shadow .15s;
+  }
+  .btn-adm-primary:hover {
+    background: #6b59ee;
+    box-shadow: 0 4px 14px rgba(124,106,255,.35);
+    transform: translateY(-1px);
+  }
+  .btn-adm-ghost {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: transparent;
+    color: var(--adm-text);
+    border: 1px solid var(--adm-border);
+    border-radius: var(--adm-radius-sm);
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .btn-adm-ghost:hover { border-color: var(--adm-accent); background: rgba(124,106,255,.06); }
+  .btn-adm-sm { padding: 6px 12px; font-size: 12px; }
+
+  /* ── Log items ── */
+  .log-entry {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--adm-border);
+  }
+  .log-entry:last-child { border-bottom: none; }
+  .log-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin-top: 5px;
+    flex-shrink: 0;
+  }
+  .log-action { font-size: 12.5px; color: var(--adm-text); line-height: 1.4; }
+  .log-by { font-size: 11px; color: var(--adm-muted); margin-top: 1px; }
+  .log-time { margin-left: auto; font-size: 11px; color: var(--adm-muted); white-space: nowrap; padding-top: 2px; }
+
+  /* ── Status pill ── */
+  .status-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .status-pill.active   { background: rgba(39,201,138,.15); color: #27c98a; }
+  .status-pill.inactive { background: rgba(248,113,113,.15); color: #f87171; }
+  .status-pill::before  { content:''; width:6px;height:6px;border-radius:50%;background:currentColor; }
+
+  /* ── AI status rows ── */
+  .ai-status-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 11px 0;
+    border-bottom: 1px solid var(--adm-border);
+    font-size: 13px;
+  }
+  .ai-status-row:last-child { border-bottom: none; }
+  .ai-status-label { color: var(--adm-muted); }
+  .ai-status-val   { font-weight: 600; color: var(--adm-text); }
+
+  /* ── Role badge ── */
+  .role-badge {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    background: rgba(124,106,255,.15);
+    color: #a78bfa;
+  }
+  .role-count {
+    font-size: 11px;
+    color: var(--adm-muted);
+  }
+</style>
+
+<!-- ── Page header strip ── -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h5 class="mb-1" style="font-weight:700;font-size:16px;color:var(--adm-text)">Admin Panel</h5>
+    <p class="mb-0" style="font-size:12px;color:var(--adm-muted)">System-wide settings, roles and permissions</p>
+  </div>
+</div>
+
+<!-- ── System stats ── -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="adm-stat">
+      <div class="adm-stat-icon" style="background:rgba(124,106,255,.15)">
+        <i class="bi bi-people" style="color:#a78bfa"></i>
+      </div>
+      <div>
+        <div class="adm-stat-value">{{ stats.users.total }}</div>
+        <div class="adm-stat-label">Total Users</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="adm-stat">
+      <div class="adm-stat-icon" style="background:rgba(39,201,138,.15)">
+        <i class="bi bi-person-check" style="color:#34d399"></i>
+      </div>
+      <div>
+        <div class="adm-stat-value">{{ stats.users.active }}</div>
+        <div class="adm-stat-label">Active Users</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="adm-stat">
+      <div class="adm-stat-icon" style="background:rgba(245,166,35,.15)">
+        <i class="bi bi-list-task" style="color:#fbbf24"></i>
+      </div>
+      <div>
+        <div class="adm-stat-value">{{ stats.tasks.total }}</div>
+        <div class="adm-stat-label">Total Tasks</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="adm-stat">
+      <div class="adm-stat-icon" style="background:rgba(79,156,249,.12)">
+        <i class="bi bi-clock-history" style="color:#60a5fa"></i>
+      </div>
+      <div>
+        <div class="adm-stat-value">{{ stats.logs }}</div>
+        <div class="adm-stat-label">Activity Logs</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Roles & Activity ── -->
+<div class="row g-4 mb-4">
+
+  <!-- Roles & Permissions -->
+  <div class="col-lg-7">
+    <div class="adm-card" style="height:100%">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="adm-card-title mb-0">
+          <div class="title-icon" style="background:rgba(124,106,255,.15)">
+            <i class="bi bi-shield-check" style="color:#a78bfa"></i>
+          </div>
+          Roles &amp; Permissions
+        </div>
+        <button class="btn-adm-primary btn-adm-sm" data-bs-toggle="modal" data-bs-target="#newRoleModal">
+          <i class="bi bi-plus-lg"></i> New Role
+        </button>
+      </div>
+
+      <div id="rolesAccordion">
+        {% for role in roles %}
+        <div class="role-row">
+          <button class="role-toggle" type="button"
+                  data-bs-toggle="collapse"
+                  data-bs-target="#role-{{ role.id }}"
+                  aria-expanded="false"
+                  aria-controls="role-{{ role.id }}">
+            <span class="role-badge">{{ role.name }}</span>
+            <span style="font-size:12px;color:var(--adm-muted)">{{ role.description or '' }}</span>
+            <span class="role-count">{{ role.permissions.count() }} perms</span>
+            <i class="bi bi-chevron-right chevron"></i>
+          </button>
+          <div id="role-{{ role.id }}" class="accordion-collapse collapse">
+            <div class="role-body">
+              <form method="POST" action="{{ url_for('admin.update_permissions', role_id=role.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+                {% set modules = ['tasks','planner','docs','users','admin'] %}
+                {% for mod in modules %}
+                <div class="perm-module-label">{{ mod }}</div>
+                <div class="perm-checks mb-1">
+                  {% set all_perms = ['view','create','edit','delete'] %}
+                  {% for action in all_perms %}
+                  {% set pname = mod + '.' + action %}
+                  <div class="perm-check-item">
+                    <input type="checkbox" name="permissions" value="{{ pname }}" id="{{ role.id }}-{{ pname }}"
+                           {% if role.has_permission(pname) %}checked{% endif %}/>
+                    <label for="{{ role.id }}-{{ pname }}">{{ action }}</label>
+                  </div>
+                  {% endfor %}
+                </div>
+                {% endfor %}
+
+                <div class="perm-module-label mt-2">Special</div>
+                <div class="perm-checks mb-3">
+                  <div class="perm-check-item">
+                    <input type="checkbox" name="permissions" value="admin.access" id="{{ role.id }}-admin.access"
+                           {% if role.has_permission('admin.access') %}checked{% endif %}/>
+                    <label for="{{ role.id }}-admin.access">admin.access</label>
+                  </div>
+                  <div class="perm-check-item">
+                    <input type="checkbox" name="permissions" value="admin.roles" id="{{ role.id }}-admin.roles"
+                           {% if role.has_permission('admin.roles') %}checked{% endif %}/>
+                    <label for="{{ role.id }}-admin.roles">admin.roles</label>
+                  </div>
+                </div>
+
+                <button type="submit" class="btn-adm-primary btn-adm-sm">
+                  <i class="bi bi-check2"></i> Save Permissions
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- System Activity -->
+  <div class="col-lg-5">
+    <div class="adm-card" style="height:100%">
+      <div class="adm-card-title">
+        <div class="title-icon" style="background:rgba(79,156,249,.12)">
+          <i class="bi bi-activity" style="color:#60a5fa"></i>
+        </div>
+        System Activity
+      </div>
+      {% for log in logs %}
+      <div class="log-entry">
+        <div class="log-dot" style="background:{% if log.entity_type == 'task' %}var(--adm-accent){% elif log.entity_type == 'document' %}var(--adm-accent2){% else %}#fbbf24{% endif %}"></div>
+        <div class="flex-grow-1">
+          <div class="log-action">{{ log.action }}</div>
+          {% if log.user %}<div class="log-by">{{ log.user.full_name }}</div>{% endif %}
+        </div>
+        <div class="log-time">{{ log.created_at.strftime('%H:%M') }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- ── Plan & M-Pesa Settings ── -->
+<div class="row g-4 mb-4" id="settings">
+
+  <!-- Subscription & Plan -->
+  <div class="col-lg-7">
+    <div class="adm-card">
+      <div class="adm-card-title">
+        <div class="title-icon" style="background:rgba(245,166,35,.15)">
+          <i class="bi bi-sliders" style="color:#fbbf24"></i>
+        </div>
+        Subscription &amp; Plan Limits
+      </div>
+      <form method="POST" action="{{ url_for('admin.update_settings') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="adm-label">Pro Monthly Price (KES)</label>
+            <input type="number" min="1" step="1" name="pro_monthly_price" class="adm-input" value="{{ settings.pro_monthly_price }}" required/>
+          </div>
+          <div class="col-md-6">
+            <label class="adm-label">Pro Annual Price (KES)</label>
+            <input type="number" min="1" step="1" name="pro_annual_price" class="adm-input" value="{{ settings.pro_annual_price }}" required/>
+          </div>
+          <div class="adm-field">
+            <label class="adm-label">Referral Commission Rate (%)</label>
+            <input type="number" min="1" max="50" step="1" name="commission_rate" class="adm-input" value="{{ settings.commission_rate or 20 }}" required/>
+            <small style="color:var(--adm-muted);font-size:11px">Percentage of subscription paid to referrer (e.g. 20 = 20%)</small>
+          </div>
+          <div class="adm-field">
+            <label class="adm-label">WhatsApp Support Number</label>
+            <input type="text" name="whatsapp_support" class="adm-input" value="{{ settings.whatsapp_support or '' }}" placeholder="254712345678 (international format, no +)"/>
+            <small style="color:var(--adm-muted);font-size:11px">Shown on Help page. Use international format without + (e.g. 254712345678)</small>
+          </div>
+          <div class="col-md-4">
+            <label class="adm-label">Free Plan — Tasks</label>
+            <input type="number" min="1" step="1" name="free_tasks_limit" class="adm-input" value="{{ settings.free_tasks_limit }}" required/>
+          </div>
+          <div class="col-md-4">
+            <label class="adm-label">Free Plan — Documents</label>
+            <input type="number" min="1" step="1" name="free_docs_limit" class="adm-input" value="{{ settings.free_docs_limit }}" required/>
+          </div>
+          <div class="col-md-4">
+            <label class="adm-label">Free Plan — AI msgs/day</label>
+            <input type="number" min="1" step="1" name="free_ai_msg_limit" class="adm-input" value="{{ settings.free_ai_msg_limit }}" required/>
+          </div>
+        </div>
+        <p class="adm-input-hint mt-3">
+          <i class="bi bi-info-circle me-1"></i>
+          Changes apply immediately. New limits don't retroactively affect active subscriptions.
+        </p>
+        <button type="submit" class="btn-adm-primary mt-3">
+          <i class="bi bi-check2"></i> Save Plan Settings
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- M-Pesa -->
+  <div class="col-lg-5">
+    <div class="adm-card">
+      <div class="adm-card-title">
+        <div class="title-icon" style="background:rgba(39,201,138,.15)">
+          <i class="bi bi-phone" style="color:#27c98a"></i>
+        </div>
+        M-Pesa Settings
+      </div>
+      <form method="POST" action="{{ url_for('admin.update_settings') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <div class="mb-3">
+          <label class="adm-label">Shortcode</label>
+          <input type="text" name="mpesa_shortcode" class="adm-input" value="{{ settings.mpesa_shortcode }}" required/>
+        </div>
+        <div class="mb-3">
+          <label class="adm-label">Callback URL</label>
+          <input type="text" name="mpesa_callback_url" class="adm-input" value="{{ settings.mpesa_callback_url }}" required/>
+        </div>
+        <div class="mb-3">
+          <label class="adm-label">Environment</label>
+          <select name="mpesa_env" class="adm-select">
+            <option value="sandbox"    {% if settings.mpesa_env == 'sandbox' %}selected{% endif %}>Sandbox</option>
+            <option value="production" {% if settings.mpesa_env == 'production' %}selected{% endif %}>Production</option>
+          </select>
+        </div>
+        <p class="adm-input-hint">
+          <i class="bi bi-lock me-1"></i>
+          Consumer key, secret, and passkey are stored in <code>.env</code> — not editable here for security.
+        </p>
+        <button type="submit" class="btn-adm-primary mt-3">
+          <i class="bi bi-check2"></i> Save M-Pesa Settings
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ── AI Agent Configuration ── -->
+<div class="row g-4 mb-4" id="ai-settings">
+  <div class="col-12">
+    <div class="adm-card">
+
+      <!-- AI card header -->
+      <div class="d-flex align-items-center gap-3 mb-4">
+        <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--adm-accent),var(--adm-accent2));display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;flex-shrink:0">
+          <i class="bi bi-robot"></i>
+        </div>
+        <div>
+          <div style="font-weight:700;font-size:14px;color:var(--adm-text)">AI Agent Configuration</div>
+          <div style="font-size:11px;color:var(--adm-muted)">Persona, model, and access controls for the AI agent system-wide</div>
+        </div>
+      </div>
+
+      <form method="POST" action="{{ url_for('admin.update_settings') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+        <!-- Persona -->
+        <div class="section-eyebrow"><i class="bi bi-person-badge"></i>Persona &amp; Behavior</div>
+        <div class="row g-3 mb-4">
+          <div class="col-md-4">
+            <label class="adm-label">Agent Name</label>
+            <input type="text" name="ai_persona_name" class="adm-input" value="{{ settings.get('ai_persona_name', 'WorkPro AI Agent') }}" placeholder="WorkPro AI Agent"/>
+            <p class="adm-input-hint">Shown in chat &amp; greetings</p>
+          </div>
+          <div class="col-md-4">
+            <label class="adm-label">Response Tone</label>
+            <select name="ai_response_tone" class="adm-select">
+              {% for tone in ['professional', 'friendly', 'concise', 'formal', 'casual'] %}
+              <option value="{{ tone }}" {% if settings.get('ai_response_tone', 'professional') == tone %}selected{% endif %}>
+                {{ tone.title() }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="adm-label">Pro Trial Task Limit</label>
+            <input type="number" name="ai_trial_task_limit" class="adm-input" min="0" max="100" value="{{ settings.get('ai_trial_task_limit', '20') }}"/>
+            <p class="adm-input-hint">Free tasks before switching to free plan</p>
+          </div>
+          <div class="col-12">
+            <label class="adm-label">Custom Welcome Message</label>
+            <textarea name="ai_intro_message" class="adm-textarea" rows="2" placeholder="Optional intro message shown in AI agent context…">{{ settings.get('ai_intro_message', '') }}</textarea>
+          </div>
+        </div>
+
+        <!-- Model -->
+        <div class="section-eyebrow"><i class="bi bi-cpu"></i>Model Settings</div>
+        <div class="row g-3 mb-4">
+          <div class="col-md-4">
+            <label class="adm-label">AI Model</label>
+            <select name="ai_model" class="adm-select">
+              {% for m in ['llama-3.1-8b-instant', 'llama-3.3-70b-versatile', 'llama-3.1-70b-versatile', 'mixtral-8x7b-32768', 'gemma2-9b-it'] %}
+              <option value="{{ m }}" {% if settings.get('ai_model', 'llama-3.1-8b-instant') == m %}selected{% endif %}>{{ m }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="adm-label">Max Response Tokens</label>
+            <input type="number" name="ai_max_tokens" class="adm-input" min="200" max="4000" step="100" value="{{ settings.get('ai_max_tokens', '1500') }}"/>
+            <p class="adm-input-hint">Higher = longer responses (costs more)</p>
+          </div>
+          <div class="col-md-4">
+            <label class="adm-label">Temperature (Creativity)</label>
+            <input type="number" name="ai_temperature" class="adm-input" min="0" max="1" step="0.1" value="{{ settings.get('ai_temperature', '0.7') }}"/>
+            <p class="adm-input-hint">0 = deterministic · 1 = very creative</p>
+          </div>
+        </div>
+
+        <!-- Access -->
+        <div class="section-eyebrow"><i class="bi bi-shield-lock"></i>Access &amp; Limits</div>
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="adm-label">Free Plan — AI Messages/Day</label>
+            <input type="number" name="free_ai_msg_limit" class="adm-input" min="1" value="{{ settings.free_ai_msg_limit }}" required/>
+          </div>
+          <div class="col-md-4">
+            <label class="adm-label">Pro Plan — AI Messages/Day</label>
+            <input type="number" name="pro_ai_msg_limit" class="adm-input" min="1" value="{{ settings.get('pro_ai_msg_limit', '999') }}"/>
+            <p class="adm-input-hint">Set very high for unlimited</p>
+          </div>
+          <div class="col-md-4">
+            <label class="adm-label">AI Enabled For</label>
+            <select name="ai_access_level" class="adm-select">
+              <option value="all"      {% if settings.get('ai_access_level','all') == 'all' %}selected{% endif %}>All Users</option>
+              <option value="pro_only" {% if settings.get('ai_access_level') == 'pro_only' %}selected{% endif %}>Pro Users Only</option>
+              <option value="disabled" {% if settings.get('ai_access_level') == 'disabled' %}selected{% endif %}>Disabled (maintenance)</option>
+            </select>
+          </div>
+        </div>
+
+        <p class="adm-input-hint mt-3">
+          <i class="bi bi-info-circle me-1"></i>
+          Changes apply immediately to all sessions. The <code>GROQ_API_KEY</code> stays in <code>.env</code>.
+        </p>
+        <button type="submit" class="btn-adm-primary mt-3">
+          <i class="bi bi-check2"></i> Save AI Configuration
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ── AI Usage Stats ── -->
+<div class="row g-4 mb-4">
+  <div class="col-lg-8">
+    <div class="adm-card">
+      <div class="adm-card-title">
+        <div class="title-icon" style="background:rgba(124,106,255,.15)">
+          <i class="bi bi-bar-chart-line" style="color:#a78bfa"></i>
+        </div>
+        AI Agent Usage Overview
+      </div>
+      <div class="row g-3">
+        <div class="col-sm-6 col-md-3">
+          <div class="adm-stat" style="flex-direction:column;align-items:flex-start;gap:10px">
+            <div class="adm-stat-icon" style="background:rgba(124,106,255,.15)">
+              <i class="bi bi-robot" style="color:#a78bfa"></i>
+            </div>
+            <div>
+              <div class="adm-stat-value">{{ stats.get('ai_total_msgs', 0) }}</div>
+              <div class="adm-stat-label">Total AI Messages</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-md-3">
+          <div class="adm-stat" style="flex-direction:column;align-items:flex-start;gap:10px">
+            <div class="adm-stat-icon" style="background:rgba(16,185,129,.15)">
+              <i class="bi bi-lightning-charge" style="color:#34d399"></i>
+            </div>
+            <div>
+              <div class="adm-stat-value">{{ stats.pro_users }}</div>
+              <div class="adm-stat-label">Pro Subscribers</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-md-3">
+          <div class="adm-stat" style="flex-direction:column;align-items:flex-start;gap:10px">
+            <div class="adm-stat-icon" style="background:rgba(251,191,36,.15)">
+              <i class="bi bi-gift" style="color:#fbbf24"></i>
+            </div>
+            <div>
+              <div class="adm-stat-value">{{ stats.users.total - stats.pro_users }}</div>
+              <div class="adm-stat-label">Free / Trial Users</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-md-3">
+          <div class="adm-stat" style="flex-direction:column;align-items:flex-start;gap:10px">
+            <div class="adm-stat-icon" style="background:rgba(79,156,249,.12)">
+              <i class="bi bi-check-circle" style="color:#60a5fa"></i>
+            </div>
+            <div>
+              <div class="adm-stat-value">{{ stats.tasks.done }}</div>
+              <div class="adm-stat-label">AI-Assisted Tasks Done</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI System Status -->
+  <div class="col-lg-4">
+    <div class="adm-card" style="height:100%">
+      <div class="adm-card-title">
+        <div class="title-icon" style="background:rgba(39,201,138,.15)">
+          <i class="bi bi-activity" style="color:#27c98a"></i>
+        </div>
+        AI System Status
+      </div>
+      <div class="ai-status-row">
+        <span class="ai-status-label">Agent Status</span>
+        {% if settings.get('ai_access_level','all') == 'disabled' %}
+          <span class="status-pill inactive">Disabled</span>
+        {% else %}
+          <span class="status-pill active">Active</span>
+        {% endif %}
+      </div>
+      <div class="ai-status-row">
+        <span class="ai-status-label">Current Model</span>
+        <span class="ai-status-val" style="font-size:11px;font-family:monospace">{{ settings.get('ai_model','llama-3.1-8b-instant') }}</span>
+      </div>
+      <div class="ai-status-row">
+        <span class="ai-status-label">Trial Task Limit</span>
+        <span class="ai-status-val" style="color:var(--adm-accent)">{{ settings.get('ai_trial_task_limit', '20') }} tasks</span>
+      </div>
+      <div class="ai-status-row">
+        <span class="ai-status-label">Response Tone</span>
+        <span class="ai-status-val">{{ settings.get('ai_response_tone','professional').title() }}</span>
+      </div>
+      <a href="{{ url_for('ai.chat') }}" class="btn-adm-ghost w-100 mt-3" style="justify-content:center">
+        <i class="bi bi-robot"></i> Open AI Agent
+      </a>
+      <a href="{{ url_for('admin.promos') }}" class="btn-adm-ghost w-100 mt-2" style="justify-content:center">
+        <i class="bi bi-tag"></i> Manage Promo Codes
+      </a>
+      <a href="{{ url_for('referral.admin_commissions') }}" class="btn-adm-ghost w-100 mt-2" style="justify-content:center">
+        <i class="bi bi-people-fill"></i> Referral Commissions
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- ── New Role Modal ── -->
+<div class="modal fade" id="newRoleModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content" style="background:var(--adm-card);border:1px solid var(--adm-border);border-radius:var(--adm-radius)">
+      <div class="modal-header" style="border-bottom:1px solid var(--adm-border)">
+        <h5 class="modal-title" style="font-size:14px;font-weight:700;color:var(--adm-text)">Create New Role</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="{{ url_for('admin.create_role') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <div class="modal-body" style="padding:24px">
+          <div class="mb-3">
+            <label class="adm-label">Role Name *</label>
+            <input type="text" name="name" class="adm-input" placeholder="e.g. editor" required/>
+          </div>
+          <div>
+            <label class="adm-label">Description</label>
+            <input type="text" name="description" class="adm-input" placeholder="Brief description of this role"/>
+          </div>
+        </div>
+        <div class="modal-footer" style="border-top:1px solid var(--adm-border);padding:16px 24px;gap:8px">
+          <button type="button" class="btn-adm-ghost" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn-adm-primary"><i class="bi bi-plus-lg"></i> Create Role</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
